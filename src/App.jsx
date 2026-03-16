@@ -249,8 +249,6 @@ export default function DailyCommandCenter() {
     setNewGrocery("");
   };
 
-  const ctdcJira = jiraTasks.filter(t => t.product === "CTDC");
-  const icdcJira = jiraTasks.filter(t => t.product === "ICDC");
   const criticalCount = jiraTasks.filter(t => t.priority === "Critical").length;
   const reviewCount = jiraTasks.filter(t => t.status === "Ready for Review" || t.status === "Ready for QA").length;
   const overdueCount = asanaTasks.filter(t => t.overdue).length;
@@ -279,7 +277,6 @@ export default function DailyCommandCenter() {
     >
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* Header */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "32px 16px 16px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "4px" }}>
           <div>
@@ -299,7 +296,6 @@ export default function DailyCommandCenter() {
           </div>
         </div>
 
-        {/* Stat Pills */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", margin: "20px 0 16px" }}>
           {[
             { label: "Overdue", value: overdueCount, color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.3)" },
@@ -314,7 +310,6 @@ export default function DailyCommandCenter() {
           ))}
         </div>
 
-        {/* Nav */}
         <div style={{ display: "flex", gap: "4px", background: "rgba(30,41,59,0.5)", borderRadius: "10px", padding: "4px", border: "1px solid rgba(71,85,105,0.5)" }}>
           {views.map(v => (
             <button
@@ -339,46 +334,31 @@ export default function DailyCommandCenter() {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "0 16px 48px" }}>
 
-        {/* ===== BRIEFING ===== */}
         {activeView === "briefing" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {/* 🔴 Critical Now */}
             <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
               <div style={{ padding: "16px 20px 4px" }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>
-                  🔴 Critical — Act Now
-                </h2>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>🔴 Critical — Act Now</h2>
               </div>
               <div style={{ padding: "0 16px 16px" }}>
-                {jiraTasks.filter(t => t.priority === "Critical").map(t => (
-                  <JiraRow key={t.key} task={t} />
-                ))}
+                {jiraTasks.filter(t => t.priority === "Critical").map(t => <JiraRow key={t.key} task={t} />)}
               </div>
             </div>
 
-            {/* 🟡 Needs Review */}
             <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
               <div style={{ padding: "16px 20px 4px" }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>
-                  🔵 Awaiting Review / QA
-                </h2>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>🔵 Awaiting Review / QA</h2>
               </div>
               <div style={{ padding: "0 16px 16px" }}>
-                {jiraTasks.filter(t => t.status === "Ready for Review" || t.status === "Ready for QA").map(t => (
-                  <JiraRow key={t.key} task={t} />
-                ))}
+                {jiraTasks.filter(t => t.status === "Ready for Review" || t.status === "Ready for QA").map(t => <JiraRow key={t.key} task={t} />)}
               </div>
             </div>
 
-            {/* 📌 Due Soon */}
             <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
               <div style={{ padding: "16px 20px 4px" }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>
-                  📌 Due This Month — Asana
-                </h2>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>📌 Due This Month — Asana</h2>
               </div>
               <div style={{ padding: "0 16px 16px" }}>
                 {asanaTasks.filter(t => t.due && t.due <= "2026-03-31").map(t => (
@@ -387,44 +367,35 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* 📅 Calendar */}
             <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>
-                📅 Calendar
-              </h2>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>📅 Calendar</h2>
               <div style={{ background: "#f8fafc", borderRadius: "10px", padding: "16px", border: "1px solid #e2e8f0", textAlign: "center" }}>
                 <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>No events found on your connected Gmail calendar today or tomorrow.</p>
                 <p style={{ color: "#94a3b8", fontSize: "11px", margin: "6px 0 0" }}>Your NIH calendar (gina.kuffel@nih.gov) may require separate connection.</p>
               </div>
             </div>
 
-            {/* 💡 Gmail/Slack */}
             <div style={{ background: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>
-                💡 Gmail & Slack
-              </h2>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>💡 Gmail & Slack</h2>
               <div style={{ background: "#f0fdf4", borderRadius: "10px", padding: "14px", border: "1px solid #bbf7d0" }}>
                 <p style={{ color: "#166534", fontSize: "13px", margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
                 <p style={{ color: "#15803d", fontSize: "12px", margin: "4px 0 0" }}>Unread Gmail is mostly promotions and alerts. No work messages with action language detected. No Slack @mentions found in public channels.</p>
               </div>
             </div>
 
-            {/* Legend */}
             <div style={{ display: "flex", gap: "16px", padding: "8px 4px" }}>
               {[["#3b82f6", "ICDC"], ["#22c55e", "CTDC"]].map(([color, label]) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, display: "inline-block" }} />
-                  <span style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>🔵 {label}</span>
+                  <span style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>{label}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ===== JIRA ===== */}
         {activeView === "jira" && (
           <div>
-            {/* Filters */}
             <div style={{ background: "rgba(30,41,59,0.4)", borderRadius: "12px", padding: "14px 16px", marginBottom: "12px", border: "1px solid rgba(71,85,105,0.4)", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ color: "#94a3b8", fontSize: "12px", fontWeight: 600 }}>Filter:</span>
               {["All", "CTDC", "ICDC"].map(f => (
@@ -452,7 +423,6 @@ export default function DailyCommandCenter() {
               ))}
             </div>
 
-            {/* CTDC Card */}
             {(jiraFilter === "All" || jiraFilter === "CTDC") && (
               <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9", marginBottom: "12px" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -471,7 +441,6 @@ export default function DailyCommandCenter() {
               </div>
             )}
 
-            {/* ICDC Card */}
             {(jiraFilter === "All" || jiraFilter === "ICDC") && (
               <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9", marginBottom: "12px" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: "10px" }}>
@@ -492,7 +461,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ===== ASANA ===== */}
         {activeView === "asana" && (
           <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
             <div style={{ padding: "16px 20px 4px" }}>
@@ -524,7 +492,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ===== GROCERY ===== */}
         {activeView === "grocery" && (
           <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f1f5f9" }}>
