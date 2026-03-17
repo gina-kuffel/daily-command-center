@@ -3,16 +3,15 @@ import { completeAsanaTask, reopenAsanaTask, fetchMyJiraTasks } from './api.js';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 const today    = new Date();
-const todayStr = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+const todayStr = today.toISOString().slice(0, 10);
 const hour     = today.getHours();
 const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 const dateStr  = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
-// Dynamic section boundaries — always correct regardless of current month
-const endOfThisMonth  = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-const endOfNextMonth  = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
-const thisMonthLabel  = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-const nextMonthLabel  = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+const endOfThisMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
+const thisMonthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const nextMonthLabel = new Date(today.getFullYear(), today.getMonth() + 1, 1)
   .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 // ─── Asana GID map ────────────────────────────────────────────────────────────
@@ -51,7 +50,6 @@ const RAW_ASANA_TASKS = [
   { name: 'Interactive tutorials via GitHub from CTDC site',                                    due: null,         product: 'CTDC' },
 ];
 
-// Compute overdue at runtime so the flag never goes stale
 const asanaTasks = RAW_ASANA_TASKS.map(t => ({
   ...t,
   overdue: !!t.due && t.due < todayStr,
@@ -65,7 +63,7 @@ const groceryItems = [
   { id: 5, name: 'Greek yogurt' },
 ];
 
-// ─── Status config — includes all real Jira status strings ───────────────────
+// ─── Style configs ────────────────────────────────────────────────────────────
 const priorityConfig = {
   Critical: { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
   Major:    { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
@@ -74,13 +72,13 @@ const priorityConfig = {
 };
 
 const statusConfig = {
-  'Ready for Review':    { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
-  'Ready for QA':        { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
-  'Ready for QA Testing':{ bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' }, // live Jira string
-  'In Progress':         { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
-  'On Hold':             { bg: '#fefce8', text: '#854d0e', border: '#fef08a' },
-  'DC Validation':       { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
-  'Open':                { bg: '#f8fafc', text: '#475569', border: '#e2e8f0' },
+  'Ready for Review':     { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
+  'Ready for QA':         { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
+  'Ready for QA Testing': { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
+  'In Progress':          { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
+  'On Hold':              { bg: '#fefce8', text: '#854d0e', border: '#fef08a' },
+  'DC Validation':        { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
+  'Open':                 { bg: '#f8fafc', text: '#475569', border: '#e2e8f0' },
 };
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -217,33 +215,23 @@ export default function DailyCommandCenter() {
   const [jiraFilter, setJiraFilter]             = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── Live Jira state ─────────────────────────────────────────────────────────
-  const [jiraTasks, setJiraTasks]   = useState([]);
+  const [jiraTasks, setJiraTasks]     = useState([]);
   const [jiraLoading, setJiraLoading] = useState(true);
-  const [jiraError, setJiraError]   = useState(false);
+  const [jiraError, setJiraError]     = useState(false);
 
   useEffect(() => {
     fetchMyJiraTasks()
-      .then(tasks => {
-        setJiraTasks(tasks);
-        setJiraLoading(false);
-      })
-      .catch(() => {
-        setJiraLoading(false);
-        setJiraError(true);
-      });
+      .then(tasks => { setJiraTasks(tasks); setJiraLoading(false); })
+      .catch(() => { setJiraLoading(false); setJiraError(true); });
   }, []);
 
-  // ── Asana toggle with live API ───────────────────────────────────────────────
   const toggleAsana = useCallback(async (name) => {
     const gid        = ASANA_GID_MAP[name];
     const nowChecked = !checkedAsana[name];
     setCheckedAsana(p => ({ ...p, [name]: nowChecked }));
     if (!gid) return;
     setAsyncStatus(p => ({ ...p, [name]: 'syncing' }));
-    const result = nowChecked
-      ? await completeAsanaTask(gid)
-      : await reopenAsanaTask(gid);
+    const result = nowChecked ? await completeAsanaTask(gid) : await reopenAsanaTask(gid);
     setAsyncStatus(p => ({ ...p, [name]: result.success ? 'success' : 'error' }));
     setTimeout(() => setAsyncStatus(p => ({ ...p, [name]: null })), 2000);
   }, [checkedAsana]);
@@ -256,7 +244,6 @@ export default function DailyCommandCenter() {
     setNewGrocery('');
   };
 
-  // ── Derived counts ───────────────────────────────────────────────────────────
   const criticalCount = jiraTasks.filter(t => t.priority === 'Critical').length;
   const reviewCount   = jiraTasks.filter(t =>
     t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
@@ -277,10 +264,14 @@ export default function DailyCommandCenter() {
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
-  // ── Jira loading/error state helpers ────────────────────────────────────────
   const JiraPlaceholder = ({ message, color = '#64748b' }) => (
     <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
   );
+
+  const syncBadgeColor = jiraLoading ? 'rgba(245,158,11,0.3)' : jiraError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
+  const syncDotColor   = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
+  const syncTextColor  = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
+  const syncLabel      = jiraLoading ? 'Loading…' : jiraError ? 'Jira error' : 'Live';
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
@@ -293,7 +284,7 @@ export default function DailyCommandCenter() {
           <div>
             <p style={{ color: '#34d399', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em',
               textTransform: 'uppercase', margin: '0 0 8px' }}>
-              Daily Command Center · Cancer Research Data Commons
+              G Unit Daily Command Center · CRDC
             </p>
             <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px', color: '#fff', margin: 0, lineHeight: 1.2 }}>
               {greeting}, Gina. ☀️
@@ -301,26 +292,21 @@ export default function DailyCommandCenter() {
             <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: jiraLoading ? 'rgba(245,158,11,0.1)' : 'rgba(52,211,153,0.1)',
-            border: `1px solid ${jiraLoading ? 'rgba(245,158,11,0.3)' : 'rgba(52,211,153,0.3)'}`,
-            borderRadius: '8px', padding: '6px 12px' }}>
+            background: `rgba(${jiraLoading ? '245,158,11' : jiraError ? '239,68,68' : '52,211,153'},0.1)`,
+            border: `1px solid ${syncBadgeColor}`, borderRadius: '8px', padding: '6px 12px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%',
-              background: jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399',
-              display: 'inline-block' }} />
-            <span style={{ color: jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399',
-              fontSize: '11px', fontWeight: 700 }}>
-              {jiraLoading ? 'Loading…' : jiraError ? 'Jira error' : 'Live'}
-            </span>
+              background: syncDotColor, display: 'inline-block' }} />
+            <span style={{ color: syncTextColor, fontSize: '11px', fontWeight: 700 }}>{syncLabel}</span>
           </div>
         </div>
 
         {/* Stat pills */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', margin: '20px 0 16px' }}>
           {[
-            { label: 'Overdue',       value: overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'   },
-            { label: 'Due this month', value: dueSoonCount, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)'  },
-            { label: 'Critical Jira', value: criticalCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.3)'  },
-            { label: 'Needs review',  value: reviewCount,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)'  },
+            { label: 'Overdue',        value: overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'  },
+            { label: 'Due this month', value: dueSoonCount,  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
+            { label: 'Critical Jira',  value: criticalCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
+            { label: 'Needs review',   value: reviewCount,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`,
               borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
