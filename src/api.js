@@ -1,35 +1,29 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Daily Command Center — API Integration
 //
-// Jira calls now go through /api/jira (Vercel serverless proxy) to avoid CORS.
-// The proxy reads JIRA_TOKEN and JIRA_BASE_URL from server-side env vars.
+// Jira calls go through /api/jira (Vercel serverless proxy) to avoid CORS.
+// The proxy reads JIRA_TOKEN and JIRA_BASE_URL from server-side env vars —
+// those secrets never touch the browser.
 //
 // Asana calls go directly from the browser — Asana allows cross-origin requests.
+//
+// Create React App env vars must be prefixed REACT_APP_ to be available
+// in the browser bundle (process.env.REACT_APP_*).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ASANA_TOKEN = import.meta.env.VITE_ASANA_TOKEN;
-const JIRA_EMAIL  = 'kuffelgr@mail.nih.gov';
+const ASANA_TOKEN = process.env.REACT_APP_ASANA_TOKEN;
 
-// ── JIRA LIVE FETCH (via proxy) ───────────────────────────────────────────────
+// ── JIRA LIVE FETCH (via Vercel proxy) ───────────────────────────────────────
 
-/**
- * Fetch all open Jira issues assigned to the current user across CTDC, ICDC, DHDM.
- *
- * Instead of calling tracker.nci.nih.gov directly (which CORS blocks),
- * we call our own Vercel serverless function at /api/jira, which forwards
- * the request server-side and hands us back the response.
- *
- * Returns a normalised array of task objects, or [] on any error.
- */
 export async function fetchMyJiraTasks() {
   const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
-  const fields     = 'summary,status,priority,issuetype,labels,project';
-  const maxResults = 100;
-
-  const params = new URLSearchParams({ jql, fields, maxResults });
+  const params = new URLSearchParams({
+    jql,
+    fields: 'summary,status,priority,issuetype,labels,project',
+    maxResults: 100,
+  });
 
   try {
-    // ✅ Call our own proxy — no CORS, no token exposed in the browser
     const res = await fetch(`/api/jira?${params.toString()}`);
 
     if (!res.ok) {
@@ -58,15 +52,12 @@ export async function fetchMyJiraTasks() {
 function projectToProduct(projectKey) {
   if (projectKey === 'CTDC') return 'CTDC';
   if (projectKey === 'ICDC') return 'ICDC';
-  if (projectKey === 'DHDM') return 'ICDC'; // DHDM tasks shown under ICDC colour
+  if (projectKey === 'DHDM') return 'ICDC';
   return 'CTDC';
 }
 
 // ── ASANA ─────────────────────────────────────────────────────────────────────
 
-/**
- * Mark an Asana task complete by its task GID.
- */
 export async function completeAsanaTask(taskGid) {
   if (!ASANA_TOKEN) return { success: false, error: 'No Asana token configured' };
   try {
@@ -89,9 +80,6 @@ export async function completeAsanaTask(taskGid) {
   }
 }
 
-/**
- * Reopen (un-complete) an Asana task by its task GID.
- */
 export async function reopenAsanaTask(taskGid) {
   if (!ASANA_TOKEN) return { success: false, error: 'No Asana token configured' };
   try {
@@ -114,23 +102,14 @@ export async function reopenAsanaTask(taskGid) {
   }
 }
 
-// ── JIRA STATUS TRANSITIONS (via proxy pattern) ───────────────────────────────
+// ── JIRA MUTATIONS (proxied versions coming if CORS blocks these) ──────────────
 
-/**
- * Transition a Jira issue to a given status name (e.g. "Done", "In Progress").
- * Still calls Jira directly for mutations — extend proxy if CORS blocks this too.
- */
 export async function transitionJiraIssue(issueKey, targetStatusName) {
-  // Mutations go through the proxy too — call /api/jira-transition if needed.
-  // For now we surface a clear error if this is blocked.
-  console.warn('[Jira] transitionJiraIssue: if this is CORS-blocked, add a /api/jira-transition proxy.');
-  return { success: false, error: 'Transition not yet proxied — see console.' };
+  console.warn('[Jira] transitionJiraIssue not yet proxied.');
+  return { success: false, error: 'Not yet implemented via proxy.' };
 }
 
-/**
- * Add a comment to a Jira issue.
- */
 export async function addJiraComment(issueKey, comment) {
-  console.warn('[Jira] addJiraComment: if this is CORS-blocked, add a /api/jira-comment proxy.');
-  return { success: false, error: 'Comment not yet proxied — see console.' };
+  console.warn('[Jira] addJiraComment not yet proxied.');
+  return { success: false, error: 'Not yet implemented via proxy.' };
 }

@@ -6,24 +6,26 @@
 // CORS. This function runs on Vercel's servers (not in the browser), so it
 // can call Jira freely and hand the response back to the React app.
 //
-// USAGE from React:
-//   fetch('/api/jira?jql=assignee=currentUser()...')
+// This file uses CommonJS (module.exports) — required for Vercel serverless
+// functions in a Create React App project (not Vite/ESM).
 //
-// REQUIRED VERCEL ENV VARS (server-side only, no VITE_ prefix needed):
+// USAGE from React:
+//   fetch('/api/jira?jql=...')
+//
+// REQUIRED VERCEL ENV VARS (server-side only, no REACT_APP_ prefix needed):
 //   JIRA_TOKEN    — Personal Access Token from tracker.nci.nih.gov
 //   JIRA_BASE_URL — e.g. https://tracker.nci.nih.gov
-//   JIRA_EMAIL    — kuffelgr@mail.nih.gov (used only for Basic auth fallback)
+//   JIRA_EMAIL    — kuffelgr@mail.nih.gov (Basic auth fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
-  // Only allow GET requests
+module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const token    = process.env.JIRA_TOKEN;
-  const baseUrl  = (process.env.JIRA_BASE_URL || '').replace(/\/$/, '');
-  const email    = process.env.JIRA_EMAIL || 'kuffelgr@mail.nih.gov';
+  const token   = process.env.JIRA_TOKEN;
+  const baseUrl = (process.env.JIRA_BASE_URL || '').replace(/\/$/, '');
+  const email   = process.env.JIRA_EMAIL || 'kuffelgr@mail.nih.gov';
 
   if (!token || !baseUrl) {
     return res.status(500).json({
@@ -31,7 +33,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // Build the Jira query from whatever the React app passes through
   const { jql, fields, maxResults } = req.query;
 
   const jiraUrl = new URL(`${baseUrl}/rest/api/2/search`);
@@ -39,41 +40,24 @@ export default async function handler(req, res) {
   if (fields)     jiraUrl.searchParams.set('fields',     fields);
   if (maxResults) jiraUrl.searchParams.set('maxResults', maxResults);
 
-  // Try Bearer auth first (PAT — correct for Jira Server/DC).
-  // If the token looks like it might be a Basic-auth password, we fall back.
-  // PATs from tracker.nci.nih.gov are long random strings — Bearer is correct.
-  const authHeader = `Bearer ${token}`;
-
-  try {
-    const jiraRes = await fetch(jiraUrl.toString(), {
+  // Try Bearer first (correct for Jira Server/DC Personal Access Tokens)
+  async function attempt(authHeader) {
+    return fetch(jiraUrl.toString(), {
       headers: {
         Authorization: authHeader,
-        Accept:        'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
       },
     });
+  }
 
-    // If Bearer fails with 401, retry with Basic auth (handles both token types)
+  try {
+    let jiraRes = await attempt(`Bearer ${token}`);
+
+    // If Bearer 401s, retry with Basic auth (covers password-style tokens)
     if (jiraRes.status === 401) {
-      const basicAuth = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
-      const retryRes  = await fetch(jiraUrl.toString(), {
-        headers: {
-          Authorization: basicAuth,
-          Accept:        'application/json',
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!retryRes.ok) {
-        const errText = await retryRes.text();
-        return res.status(retryRes.status).json({
-          error: `Jira auth failed (tried Bearer + Basic): ${retryRes.status} ${retryRes.statusText}`,
-          detail: errText.slice(0, 500),
-        });
-      }
-
-      const data = await retryRes.json();
-      return res.status(200).json(data);
+      const basic = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
+      jiraRes = await attempt(basic);
     }
 
     if (!jiraRes.ok) {
@@ -90,4 +74,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: 'Proxy fetch failed', detail: e.message });
   }
-}
+};
