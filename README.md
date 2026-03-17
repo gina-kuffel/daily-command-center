@@ -6,10 +6,21 @@ Built with React + Vite. Tracks Jira issues, Asana tasks, and a grocery list acr
 
 ---
 
+## 🗺️ Architecture
+
+![Architecture diagram](docs/architecture.svg)
+
+> **Purple** = Claude / app layer · **Teal** = external data sources (MCP) · **Gray** = GitHub repo + Vercel  
+> Solid lines = synchronous calls · Dashed lines = async / background
+
+---
+
 ## 🗂️ Project Structure
 
 ```
 daily-command-center/
+├── docs/
+│   └── architecture.svg    # System architecture diagram
 ├── public/
 │   ├── index.html          # HTML shell
 │   └── manifest.json       # PWA manifest
