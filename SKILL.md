@@ -89,28 +89,17 @@ When a new conversation opens, immediately do ALL of the following in parallel, 
 
 ### When Gina confirms a suggested Personal to-do:
 
-**Claude MUST call the `/api/todos` endpoint directly** to persist it to Vercel KV.
+**Claude MUST use `bash_tool` to POST directly to `/api/todos`** to persist it to Upstash Redis.
 This is the critical step — without it, the item only lives in the conversation and disappears.
 
-Call this endpoint via `fetch` in the conversation context or instruct via the briefing.
-The correct call is:
-```
-POST https://<your-vercel-url>/api/todos?op=add
-Content-Type: application/json
-{ "name": "Renew vehicle registration", "due": "2026-03-31", "priority": "high", "source": "gmail", "sourceRef": "Subject: Vehicle Registration Renewal Notice" }
-```
-
-Since Claude cannot make external HTTP calls directly from a conversation, Claude should instead:
-1. Tell Gina what will be added
-2. Use the `bash_tool` to POST to the `/api/todos` endpoint if available, OR
-3. Note the item clearly and ask Gina to add it via the To-Do tab in the app
-
-**Preferred flow when `bash_tool` is available:**
+**Preferred flow — use bash_tool to call the live API:**
 ```bash
-curl -X POST "https://daily-command-center.vercel.app/api/todos?op=add" \
+curl -s -X POST "https://daily-command-center.vercel.app/api/todos?op=add" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Renew vehicle registration","due":"2026-03-31","priority":"high","source":"gmail","sourceRef":"DMV renewal notice"}'
+  -d '{"name":"Renew vehicle registration","due":"2026-03-31","priority":"high","source":"gmail","sourceRef":"DMV Registration Renewal Notice"}'
 ```
+
+If bash_tool is unavailable, clearly list all confirmed items and ask Gina to add them via the To-Do tab in the app.
 
 ### Briefing Format
 
@@ -118,7 +107,7 @@ curl -X POST "https://daily-command-center.vercel.app/api/todos?op=add" \
 Good [morning/afternoon/evening], Gina. ☀️ / 🌤️ / 🌙
 
 📛 Overdue: [count] items
-📌 Due today: [count] items  
+📌 Due today: [count] items
 🔄 Newly synced from Jira/Asana: [count] items
 💡 Suggested from Gmail/Slack: [count] items — review below
 
@@ -141,7 +130,7 @@ Add this? Yes / No / Edit
 - 🛒 Manage grocery list — simple checklist, no priorities needed
 - 🐙 Push code changes to `gina-kuffel/daily-command-center` via GitHub
 - ✅ Check off Asana tasks — syncs live to Asana via `/api/asana` proxy
-- 🏠 **Persist Personal to-dos to Vercel KV via `/api/todos`** — survives across sessions and devices
+- 🏠 **Persist Personal to-dos to Upstash Redis via `/api/todos`** — survives across sessions and devices
 
 ---
 
@@ -197,7 +186,7 @@ daily-command-center/
 ├── api/
 │   ├── jira.js        # Vercel serverless — Jira CORS proxy
 │   ├── asana.js       # Vercel serverless — Asana proxy (complete/reopen/fetch)
-│   └── todos.js       # Vercel serverless — Personal To-Do CRUD (Vercel KV)
+│   └── todos.js       # Vercel serverless — Personal To-Do CRUD (Upstash Redis)
 ├── docs/
 │   └── architecture.svg
 ├── public/
@@ -217,17 +206,17 @@ daily-command-center/
 ```
 [Gmail] → Claude detects life-admin item
     ↓  Gina confirms
-Claude (or bash_tool) → POST /api/todos?op=add
+Claude uses bash_tool → POST /api/todos?op=add
     ↓
-Vercel KV (Redis) stores { id, name, due, priority, source, sourceRef, completed }
+Upstash Redis stores { id, name, due, priority, source, sourceRef, completed }
     ↓
 React app → GET /api/todos?op=list on load
     ↓
 To-Do tab renders live, persistent, cross-device list
 
-Gina checks off item in app → PATCH /api/todos?op=toggle&id=...
+Gina checks off item in app → POST /api/todos?op=toggle&id=...
     ↓
-Vercel KV updated — change persists across all sessions
+Upstash Redis updated — change persists across all sessions and devices
 ```
 
 ### Environment Variables (set in Vercel dashboard)
@@ -238,8 +227,8 @@ Vercel KV updated — change persists across all sessions
 | `JIRA_BASE_URL` | `api/jira.js` | e.g. `https://tracker.nci.nih.gov` |
 | `JIRA_EMAIL` | `api/jira.js` | `kuffelgr@mail.nih.gov` |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
-| `KV_REST_API_URL` | `api/todos.js` | Auto-injected by Vercel when KV store is connected |
-| `KV_REST_API_TOKEN` | `api/todos.js` | Auto-injected by Vercel when KV store is connected |
+| `UPSTASH_REDIS_REST_URL` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
+| `UPSTASH_REDIS_REST_TOKEN` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 
 ### `/api/todos` operations
 
@@ -274,22 +263,19 @@ Vercel KV updated — change persists across all sessions
 | `dcc_groceries` | Grocery list items |
 | `dcc_grocery_checks` | Grocery checked state |
 
-Note: Personal todos are now KV-backed, NOT in localStorage.
+Personal todos are Upstash Redis-backed, NOT in localStorage.
 
 ---
 
-## ⚙️ One-Time Setup Required: Vercel KV
+## ⚙️ Infrastructure — Upstash Redis ✅ COMPLETE
 
-Vercel KV is like a tiny cloud database built into Vercel — free tier, no separate account needed.
+Upstash Redis is connected and live. Setup was completed March 2026.
 
-**Steps (one time only):**
-1. Go to [vercel.com](https://vercel.com) → your `daily-command-center` project
-2. Click **Storage** tab → **Create Database** → choose **KV**
-3. Name it anything (e.g. `dcc-store`) → Create
-4. Vercel automatically injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` into your project env vars
-5. Redeploy (or it picks up on next push)
-
-Until this is done, the To-Do tab shows a yellow warning banner with instructions.
+- **How it was set up:** Vercel dashboard → Storage → Upstash → Redis → Create database
+- **Env vars injected automatically:** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+- **Redis key used:** `dcc:todos` (single key storing the full todos array as JSON)
+- **Free tier limits:** 10,000 commands/day, 256MB storage — more than enough for personal use
+- **If the To-Do tab shows a yellow warning:** the env vars may have been rotated or the database was deleted — reconnect Upstash from Vercel Storage tab
 
 ---
 
@@ -298,17 +284,17 @@ Until this is done, the To-Do tab shows a yellow warning banner with instruction
 ### ✅ Shipped
 - [x] Live Jira fetch via `/api/jira` Vercel proxy
 - [x] Live Asana fetch + checkbox sync via `/api/asana`
-- [x] Grocery list (localStorage)
-- [x] Time-aware greeting
-- [x] G Unit banner
+- [x] Grocery list (localStorage, persists across refreshes)
+- [x] Time-aware greeting (morning/afternoon/evening)
+- [x] G Unit banner with city skyline SVG
 - [x] Personal To-Do tab with priority + due date
-- [x] **`/api/todos` — Vercel KV-backed persistent todo store**
+- [x] **`/api/todos` — Upstash Redis-backed persistent todo store** ✅
+- [x] **Upstash Redis connected to Vercel** ✅
 - [x] Todo source tagging (Gmail 📧 / Slack 💬 / Manual ✏️)
 - [x] Optimistic UI updates with server reconciliation
 - [x] SyncBadge on todo toggle
 
 ### 🔜 Planned
-- [ ] Vercel KV setup (manual step — see above)
 - [ ] Claude directly POSTing confirmed todos via bash_tool during Morning Sync
 - [ ] Gmail + Slack action-item panel inside the app UI
 - [ ] Google Calendar panel
@@ -322,9 +308,9 @@ Until this is done, the To-Do tab shows a yellow warning banner with instruction
 ## 🔄 How to Update This File
 
 1. Edit `SKILL.md` directly on GitHub, OR
-2. Ask Claude — Claude will push via `github:push_files`
+2. Ask Claude — Claude will push via `github:create_or_update_file` or `github:push_files`
 3. Changes take effect in the **next** conversation
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.5*
+*Last updated: March 2026 — Daily Command Center v1.6*
