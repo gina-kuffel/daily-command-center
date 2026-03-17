@@ -1,7 +1,28 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { completeAsanaTask, reopenAsanaTask } from "./api.js";
 
 const today = new Date();
+const hour = today.getHours();
+const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+// ─── Real Asana GIDs ──────────────────────────────────────────────────────────
+const ASANA_GID_MAP = {
+  "Review shared DataCounts slides":                                         "1212364674855195",
+  "1.2.1.5 NCTN-NCORP TCIA Images ONLY data integration":                   "1211387299086986",
+  "CMB v5":                                                                  "1210890785381008",
+  "CMB v4":                                                                  "1210890746003119",
+  "Review updated Consolidated Gap Analysis":                                "1213315089912178",
+  "Review updated Appendix A":                                               "1213315089912182",
+  "Review CIDC Assay Analysis":                                              "1213315089912180",
+  "Follow-up: CIDC team create a table of values for potential generic treatment node": "1211214277472252",
+  "1.2.1.2 IODH-CIMAC-CIDC data integration":                               "1211387299086984",
+  "Set up interoperability meeting with DH/Gina/Steph":                      "1211293338116018",
+  "Discuss downloading CTDC data capabilities (now and future)":             "1211293338115841",
+  "1.2.1.1 Cancer Moonshot Biobank (CMB) data integration":                  "1211387299086983",
+  "Update DCF workflow for migrating data from CTDC automatically":          "1208106831570969",
+  "Interactive tutorials via GitHub from CTDC site":                         "1211293338116088",
+};
 
 const jiraTasks = [
   { key: "CTDC-1935", summary: "Generate technical options for anonymizing NCI-MATCH BlindIDs", status: "Ready for Review", priority: "Critical", product: "CTDC", type: "Task" },
@@ -57,30 +78,44 @@ const groceryItems = [
 
 const priorityConfig = {
   Critical: { bg: "#fef2f2", text: "#991b1b", border: "#fecaca" },
-  Major: { bg: "#fff7ed", text: "#9a3412", border: "#fed7aa" },
-  Minor: { bg: "#f0fdf4", text: "#166534", border: "#bbf7d0" },
-  TBD: { bg: "#f8fafc", text: "#64748b", border: "#e2e8f0" },
+  Major:    { bg: "#fff7ed", text: "#9a3412", border: "#fed7aa" },
+  Minor:    { bg: "#f0fdf4", text: "#166534", border: "#bbf7d0" },
+  TBD:      { bg: "#f8fafc", text: "#64748b", border: "#e2e8f0" },
 };
 
 const statusConfig = {
-  "Ready for Review": { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
-  "Ready for QA": { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff" },
-  "In Progress": { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0" },
-  "On Hold": { bg: "#fefce8", text: "#854d0e", border: "#fef08a" },
-  "Open": { bg: "#f8fafc", text: "#475569", border: "#e2e8f0" },
+  "Ready for Review":   { bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe" },
+  "Ready for QA":       { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff" },
+  "In Progress":        { bg: "#f0fdf4", text: "#15803d", border: "#bbf7d0" },
+  "On Hold":            { bg: "#fefce8", text: "#854d0e", border: "#fef08a" },
+  "Open":               { bg: "#f8fafc", text: "#475569", border: "#e2e8f0" },
+};
+
+// ── SyncBadge ─────────────────────────────────────────────────────────────────
+// Shows syncing spinner, then ✓ success or ✗ error for 2 seconds
+const SyncBadge = ({ status }) => {
+  if (!status) return null;
+  const configs = {
+    syncing: { bg: "#eff6ff", text: "#1d4ed8", label: "⟳ Syncing…" },
+    success: { bg: "#f0fdf4", text: "#15803d", label: "✓ Synced" },
+    error:   { bg: "#fef2f2", text: "#991b1b", label: "✗ Error" },
+  };
+  const c = configs[status] || configs.syncing;
+  return (
+    <span style={{
+      fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
+      background: c.bg, color: c.text, marginLeft: "8px", display: "inline-block",
+    }}>
+      {c.label}
+    </span>
+  );
 };
 
 const Badge = ({ label, config }) => (
   <span style={{
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: "4px",
-    fontSize: "10px",
-    fontWeight: 600,
-    letterSpacing: "0.04em",
-    background: config.bg,
-    color: config.text,
-    border: `1px solid ${config.border}`,
+    display: "inline-block", padding: "2px 8px", borderRadius: "4px",
+    fontSize: "10px", fontWeight: 600, letterSpacing: "0.04em",
+    background: config.bg, color: config.text, border: `1px solid ${config.border}`,
     textTransform: "uppercase",
   }}>
     {label}
@@ -89,13 +124,9 @@ const Badge = ({ label, config }) => (
 
 const ProductDot = ({ product }) => (
   <span style={{
-    display: "inline-block",
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
+    display: "inline-block", width: "8px", height: "8px", borderRadius: "50%",
     background: product === "CTDC" ? "#22c55e" : "#3b82f6",
-    flexShrink: 0,
-    marginTop: "2px",
+    flexShrink: 0, marginTop: "2px",
   }} />
 );
 
@@ -106,29 +137,18 @@ const Section = ({ title, icon, children, defaultOpen = false, count }) => {
       <button
         onClick={() => setOpen(!open)}
         style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 4px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
+          width: "100%", display: "flex", alignItems: "center",
+          justifyContent: "space-between", padding: "12px 4px",
+          background: "none", border: "none", cursor: "pointer", textAlign: "left",
         }}
       >
         <span style={{ fontWeight: 600, color: "#1e293b", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
           <span style={{ fontSize: "14px" }}>{icon}</span>
           {title}
           {count !== undefined && (
-            <span style={{
-              background: "#f1f5f9",
-              color: "#64748b",
-              borderRadius: "10px",
-              padding: "1px 7px",
-              fontSize: "11px",
-              fontWeight: 600,
-            }}>{count}</span>
+            <span style={{ background: "#f1f5f9", color: "#64748b", borderRadius: "10px", padding: "1px 7px", fontSize: "11px", fontWeight: 600 }}>
+              {count}
+            </span>
           )}
         </span>
         <span style={{ color: "#94a3b8", fontSize: "11px" }}>{open ? "▲" : "▼"}</span>
@@ -140,10 +160,7 @@ const Section = ({ title, icon, children, defaultOpen = false, count }) => {
 
 const JiraRow = ({ task }) => (
   <div style={{
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "10px",
-    padding: "8px 10px",
+    display: "flex", alignItems: "flex-start", gap: "10px", padding: "8px 10px",
     borderRadius: "8px",
     background: task.priority === "Critical" ? "#fff5f5" : "#fafafa",
     marginBottom: "4px",
@@ -166,36 +183,37 @@ const JiraRow = ({ task }) => (
   </div>
 );
 
-const AsanaRow = ({ task, checked, onToggle }) => (
+const AsanaRow = ({ task, checked, syncStatus, onToggle }) => (
   <div style={{
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "10px",
-    padding: "8px 10px",
+    display: "flex", alignItems: "flex-start", gap: "10px", padding: "8px 10px",
     borderRadius: "8px",
     background: task.overdue ? "#fff5f5" : "#fafafa",
     marginBottom: "4px",
     border: task.overdue ? "1px solid #fecaca" : "1px solid #f1f5f9",
-    opacity: checked ? 0.5 : 1,
+    opacity: checked ? 0.55 : 1,
+    transition: "opacity 0.2s",
   }}>
     <input
       type="checkbox"
       checked={checked}
       onChange={() => onToggle(task.name)}
+      disabled={syncStatus === "syncing"}
       style={{ marginTop: "2px", cursor: "pointer", accentColor: "#10b981" }}
     />
     <ProductDot product={task.product} />
     <div style={{ flex: 1, minWidth: 0 }}>
-      <p style={{ margin: 0, fontSize: "12px", color: checked ? "#94a3b8" : "#334155", lineHeight: "1.4", textDecoration: checked ? "line-through" : "none" }}>
-        {task.name}
-      </p>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" }}>
+        <p style={{ margin: 0, fontSize: "12px", color: checked ? "#94a3b8" : "#334155", lineHeight: "1.4", textDecoration: checked ? "line-through" : "none" }}>
+          {task.name}
+        </p>
+        <SyncBadge status={syncStatus} />
+      </div>
       {task.due && (
         <span style={{
           fontSize: "10px",
           color: task.overdue ? "#dc2626" : "#64748b",
           fontWeight: task.overdue ? 700 : 400,
-          marginTop: "2px",
-          display: "block",
+          marginTop: "2px", display: "block",
         }}>
           {task.overdue ? "⚠ OVERDUE — " : "Due "}{task.due}
         </span>
@@ -206,41 +224,54 @@ const AsanaRow = ({ task, checked, onToggle }) => (
 
 const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   <div style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "7px 10px",
-    borderRadius: "8px",
-    background: "#fafafa",
-    marginBottom: "4px",
-    border: "1px solid #f1f5f9",
+    display: "flex", alignItems: "center", gap: "10px", padding: "7px 10px",
+    borderRadius: "8px", background: "#fafafa", marginBottom: "4px", border: "1px solid #f1f5f9",
   }}>
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={() => onToggle(item.id)}
-      style={{ cursor: "pointer", accentColor: "#10b981" }}
-    />
+    <input type="checkbox" checked={checked} onChange={() => onToggle(item.id)} style={{ cursor: "pointer", accentColor: "#10b981" }} />
     <span style={{ flex: 1, fontSize: "13px", color: checked ? "#94a3b8" : "#334155", textDecoration: checked ? "line-through" : "none" }}>
       {item.name}
     </span>
-    <button
-      onClick={() => onDelete(item.id)}
-      style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: "14px", lineHeight: 1, padding: "2px" }}
-    >×</button>
+    <button onClick={() => onDelete(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", fontSize: "14px", lineHeight: 1, padding: "2px" }}>×</button>
   </div>
 );
 
 export default function DailyCommandCenter() {
-  const [activeView, setActiveView] = useState("briefing");
-  const [checkedAsana, setCheckedAsana] = useState({});
-  const [groceries, setGroceries] = useState(groceryItems);
+  const [activeView, setActiveView]           = useState("briefing");
+  const [checkedAsana, setCheckedAsana]       = useState({});
+  const [asyncStatus, setAsyncStatus]         = useState({}); // { taskName: "syncing"|"success"|"error"|null }
+  const [groceries, setGroceries]             = useState(groceryItems);
   const [checkedGroceries, setCheckedGroceries] = useState({});
-  const [newGrocery, setNewGrocery] = useState("");
-  const [jiraFilter, setJiraFilter] = useState("All");
+  const [newGrocery, setNewGrocery]           = useState("");
+  const [jiraFilter, setJiraFilter]           = useState("All");
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState("All");
 
-  const toggleAsana = (name) => setCheckedAsana(p => ({ ...p, [name]: !p[name] }));
+  // ── Toggle Asana task + call live API ─────────────────────────────────────
+  const toggleAsana = useCallback(async (name) => {
+    const gid = ASANA_GID_MAP[name];
+    const nowChecked = !checkedAsana[name];
+
+    // Optimistic UI update
+    setCheckedAsana(p => ({ ...p, [name]: nowChecked }));
+
+    if (!gid) {
+      // No GID mapped — local toggle only, no API call
+      return;
+    }
+
+    setAsyncStatus(p => ({ ...p, [name]: "syncing" }));
+
+    const result = nowChecked
+      ? await completeAsanaTask(gid)
+      : await reopenAsanaTask(gid);
+
+    setAsyncStatus(p => ({ ...p, [name]: result.success ? "success" : "error" }));
+
+    // Clear badge after 2 seconds
+    setTimeout(() => {
+      setAsyncStatus(p => ({ ...p, [name]: null }));
+    }, 2000);
+  }, [checkedAsana]);
+
   const toggleGrocery = (id) => setCheckedGroceries(p => ({ ...p, [id]: !p[id] }));
   const deleteGrocery = (id) => setGroceries(p => p.filter(g => g.id !== id));
   const addGrocery = () => {
@@ -249,34 +280,29 @@ export default function DailyCommandCenter() {
     setNewGrocery("");
   };
 
-  const criticalCount = jiraTasks.filter(t => t.priority === "Critical").length;
-  const reviewCount = jiraTasks.filter(t => t.status === "Ready for Review" || t.status === "Ready for QA").length;
-  const overdueCount = asanaTasks.filter(t => t.overdue).length;
-  const dueSoonCount = asanaTasks.filter(t => !t.overdue && t.due && t.due <= "2026-03-31").length;
+  const criticalCount  = jiraTasks.filter(t => t.priority === "Critical").length;
+  const reviewCount    = jiraTasks.filter(t => t.status === "Ready for Review" || t.status === "Ready for QA").length;
+  const overdueCount   = asanaTasks.filter(t => t.overdue).length;
+  const dueSoonCount   = asanaTasks.filter(t => !t.overdue && t.due && t.due <= "2026-03-31").length;
 
   const filteredJira = jiraTasks.filter(t => {
-    const productMatch = jiraFilter === "All" || t.product === jiraFilter;
-    const priorityMatch = jiraPriorityFilter === "All" || t.priority === jiraPriorityFilter;
+    const productMatch   = jiraFilter === "All" || t.product === jiraFilter;
+    const priorityMatch  = jiraPriorityFilter === "All" || t.priority === jiraPriorityFilter;
     return productMatch && priorityMatch;
   });
 
   const views = [
     { id: "briefing", label: "Briefing", icon: "◉" },
-    { id: "jira", label: "Jira", icon: "⊞" },
-    { id: "asana", label: "Asana", icon: "◎" },
-    { id: "grocery", label: "Grocery", icon: "🛒" },
+    { id: "jira",     label: "Jira",     icon: "⊞" },
+    { id: "asana",    label: "Asana",    icon: "◎" },
+    { id: "grocery",  label: "Grocery",  icon: "🛒" },
   ];
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
-        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
-      }}
-    >
+    <div style={{ minHeight: "100vh", fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif", background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
+      {/* ── Header ── */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "32px 16px 16px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "4px" }}>
           <div>
@@ -284,24 +310,23 @@ export default function DailyCommandCenter() {
               Daily Command Center · Cancer Research Data Commons
             </p>
             <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "28px", color: "#fff", margin: 0, lineHeight: 1.2 }}>
-              Good morning, Gina. ☀️
+              {greeting}, Gina. ☀️
             </h1>
             <p style={{ color: "#94a3b8", fontSize: "13px", margin: "6px 0 0" }}>{dateStr}</p>
           </div>
-          <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: "8px", padding: "6px 12px" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
-              <span style={{ color: "#34d399", fontSize: "11px", fontWeight: 700 }}>Synced</span>
-            </div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: "8px", padding: "6px 12px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#34d399", display: "inline-block" }} />
+            <span style={{ color: "#34d399", fontSize: "11px", fontWeight: 700 }}>Synced</span>
           </div>
         </div>
 
+        {/* Stat Pills */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", margin: "20px 0 16px" }}>
           {[
-            { label: "Overdue", value: overdueCount, color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.3)" },
-            { label: "Due this week", value: dueSoonCount, color: "#f59e0b", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)" },
+            { label: "Overdue",      value: overdueCount,  color: "#ef4444", bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.3)" },
+            { label: "Due this week", value: dueSoonCount, color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.3)" },
             { label: "Critical Jira", value: criticalCount, color: "#f97316", bg: "rgba(249,115,22,0.12)", border: "rgba(249,115,22,0.3)" },
-            { label: "Needs review", value: reviewCount, color: "#3b82f6", bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.3)" },
+            { label: "Needs review", value: reviewCount,   color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.3)" },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: "10px", padding: "12px", textAlign: "center" }}>
               <div style={{ fontSize: "24px", fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
@@ -310,34 +335,28 @@ export default function DailyCommandCenter() {
           ))}
         </div>
 
+        {/* Nav */}
         <div style={{ display: "flex", gap: "4px", background: "rgba(30,41,59,0.5)", borderRadius: "10px", padding: "4px", border: "1px solid rgba(71,85,105,0.5)" }}>
           {views.map(v => (
-            <button
-              key={v.id}
-              onClick={() => setActiveView(v.id)}
-              style={{
-                flex: 1,
-                padding: "10px 8px",
-                borderRadius: "7px",
-                fontSize: "12px",
-                fontWeight: 600,
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                background: activeView === v.id ? "#fff" : "transparent",
-                color: activeView === v.id ? "#0f172a" : "#94a3b8",
-              }}
-            >
+            <button key={v.id} onClick={() => setActiveView(v.id)} style={{
+              flex: 1, padding: "10px 8px", borderRadius: "7px", fontSize: "12px", fontWeight: 600,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
+              background: activeView === v.id ? "#fff" : "transparent",
+              color: activeView === v.id ? "#0f172a" : "#94a3b8",
+            }}>
               <span style={{ marginRight: "4px" }}>{v.icon}</span>{v.label}
             </button>
           ))}
         </div>
       </div>
 
+      {/* ── Content ── */}
       <div style={{ maxWidth: "860px", margin: "0 auto", padding: "0 16px 48px" }}>
 
+        {/* ===== BRIEFING ===== */}
         {activeView === "briefing" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+
             <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
               <div style={{ padding: "16px 20px 4px" }}>
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>🔴 Critical — Act Now</h2>
@@ -362,7 +381,7 @@ export default function DailyCommandCenter() {
               </div>
               <div style={{ padding: "0 16px 16px" }}>
                 {asanaTasks.filter(t => t.due && t.due <= "2026-03-31").map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} onToggle={toggleAsana} />
+                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </div>
             </div>
@@ -379,7 +398,7 @@ export default function DailyCommandCenter() {
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 12px" }}>💡 Gmail & Slack</h2>
               <div style={{ background: "#f0fdf4", borderRadius: "10px", padding: "14px", border: "1px solid #bbf7d0" }}>
                 <p style={{ color: "#166534", fontSize: "13px", margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
-                <p style={{ color: "#15803d", fontSize: "12px", margin: "4px 0 0" }}>Unread Gmail is mostly promotions and alerts. No work messages with action language detected. No Slack @mentions found in public channels.</p>
+                <p style={{ color: "#15803d", fontSize: "12px", margin: "4px 0 0" }}>Unread Gmail is mostly promotions and alerts. No Slack @mentions found in public channels.</p>
               </div>
             </div>
 
@@ -394,6 +413,7 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ===== JIRA ===== */}
         {activeView === "jira" && (
           <div>
             <div style={{ background: "rgba(30,41,59,0.4)", borderRadius: "12px", padding: "14px 16px", marginBottom: "12px", border: "1px solid rgba(71,85,105,0.4)", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -461,37 +481,39 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ===== ASANA ===== */}
         {activeView === "asana" && (
           <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
             <div style={{ padding: "16px 20px 4px" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "18px", color: "#0f172a", margin: "0 0 4px" }}>Asana Tasks</h2>
-              <p style={{ color: "#64748b", fontSize: "12px", margin: "0 0 12px" }}>{asanaTasks.length} open • {overdueCount} overdue • check off when done</p>
+              <p style={{ color: "#64748b", fontSize: "12px", margin: "0 0 12px" }}>{asanaTasks.length} open • {overdueCount} overdue • check off to sync with Asana</p>
             </div>
             <div style={{ padding: "0 16px 8px" }}>
               <Section title="Overdue" icon="🔴" defaultOpen={true} count={asanaTasks.filter(t => t.overdue).length}>
                 {asanaTasks.filter(t => t.overdue).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} onToggle={toggleAsana} />
+                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </Section>
               <Section title="Due March 2026" icon="📌" defaultOpen={true} count={asanaTasks.filter(t => !t.overdue && t.due && t.due <= "2026-03-31").length}>
                 {asanaTasks.filter(t => !t.overdue && t.due && t.due <= "2026-03-31").map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} onToggle={toggleAsana} />
+                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </Section>
               <Section title="Due April – May 2026" icon="🗓️" defaultOpen={false} count={asanaTasks.filter(t => t.due && t.due > "2026-03-31" && t.due <= "2026-05-31").length}>
                 {asanaTasks.filter(t => t.due && t.due > "2026-03-31" && t.due <= "2026-05-31").map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} onToggle={toggleAsana} />
+                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </Section>
               <Section title="Long-horizon / No due date" icon="🔭" defaultOpen={false} count={asanaTasks.filter(t => !t.due || t.due > "2026-05-31").length}>
                 {asanaTasks.filter(t => !t.due || t.due > "2026-05-31").map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} onToggle={toggleAsana} />
+                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]} syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </Section>
             </div>
           </div>
         )}
 
+        {/* ===== GROCERY ===== */}
         {activeView === "grocery" && (
           <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #f1f5f9" }}>
             <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid #f1f5f9" }}>
@@ -512,24 +534,13 @@ export default function DailyCommandCenter() {
               )}
               <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
                 <input
-                  type="text"
-                  value={newGrocery}
+                  type="text" value={newGrocery}
                   onChange={e => setNewGrocery(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addGrocery()}
                   placeholder="Add item..."
-                  style={{
-                    flex: 1, padding: "9px 12px", borderRadius: "8px",
-                    border: "1px solid #e2e8f0", fontSize: "13px", outline: "none",
-                    fontFamily: "inherit",
-                  }}
+                  style={{ flex: 1, padding: "9px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "13px", outline: "none", fontFamily: "inherit" }}
                 />
-                <button
-                  onClick={addGrocery}
-                  style={{
-                    padding: "9px 18px", borderRadius: "8px", background: "#0f172a",
-                    color: "#fff", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
-                  }}
-                >
+                <button onClick={addGrocery} style={{ padding: "9px 18px", borderRadius: "8px", background: "#0f172a", color: "#fff", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
                   Add
                 </button>
               </div>
