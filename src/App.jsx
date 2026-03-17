@@ -214,7 +214,7 @@ const TodoItem = ({ item, onToggle, onDelete }) => {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px',
       borderRadius: '8px', marginBottom: '4px',
-      background: item.completed ? '#fafafa' : isOverdue ? '#fff5f5' : '#fafafa',
+      background: isOverdue && !item.completed ? '#fff5f5' : '#fafafa',
       border: isOverdue && !item.completed ? '1px solid #fecaca' : '1px solid #f1f5f9',
       opacity: item.completed ? 0.5 : 1, transition: 'opacity 0.2s' }}>
       <input type="checkbox" checked={item.completed} onChange={() => onToggle(item.id)}
@@ -222,8 +222,7 @@ const TodoItem = ({ item, onToggle, onDelete }) => {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '2px' }}>
           {item.priority && (
-            <Badge label={todoPriorityConfig[item.priority].label}
-              config={todoPriorityConfig[item.priority]} />
+            <Badge label={todoPriorityConfig[item.priority].label} config={todoPriorityConfig[item.priority]} />
           )}
           <p style={{ margin: 0, fontSize: '12px', lineHeight: '1.4',
             color: item.completed ? '#94a3b8' : '#334155',
@@ -233,8 +232,7 @@ const TodoItem = ({ item, onToggle, onDelete }) => {
         </div>
         {item.due && (
           <span style={{ fontSize: '10px', display: 'block',
-            color: isOverdue ? '#dc2626' : '#64748b',
-            fontWeight: isOverdue ? 700 : 400 }}>
+            color: isOverdue ? '#dc2626' : '#64748b', fontWeight: isOverdue ? 700 : 400 }}>
             {isOverdue ? '⚠ OVERDUE — ' : 'Due '}{item.due}
           </span>
         )}
@@ -259,25 +257,20 @@ export default function DailyCommandCenter() {
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
   // ── Personal To-Do state ─────────────────────────────────────────────────
-  const [todos, setTodos]           = useState([]);
-  const [newTodo, setNewTodo]       = useState('');
-  const [newTodoDue, setNewTodoDue] = useState('');
-  const [newTodoPri, setNewTodoPri] = useState('');
+  const [todos, setTodos]                 = useState([]);
+  const [newTodo, setNewTodo]             = useState('');
+  const [newTodoDue, setNewTodoDue]       = useState('');
+  const [newTodoPri, setNewTodoPri]       = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
-    setTodos(p => [...p, {
-      id: Date.now(),
-      name: newTodo.trim(),
-      due: newTodoDue || null,
-      priority: newTodoPri || null,
-      completed: false,
-    }]);
+    setTodos(p => [...p, { id: Date.now(), name: newTodo.trim(),
+      due: newTodoDue || null, priority: newTodoPri || null, completed: false }]);
     setNewTodo(''); setNewTodoDue(''); setNewTodoPri('');
   };
-  const toggleTodo  = (id) => setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const deleteTodo  = (id) => setTodos(p => p.filter(t => t.id !== id));
+  const toggleTodo = (id) => setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const deleteTodo = (id) => setTodos(p => p.filter(t => t.id !== id));
 
   // ── Live Jira state ───────────────────────────────────────────────────────
   const [jiraTasks, setJiraTasks]     = useState([]);
@@ -291,7 +284,7 @@ export default function DailyCommandCenter() {
   }, []);
 
   const toggleAsana = useCallback(async (name) => {
-    const gid        = ASANA_GID_MAP[name];
+    const gid = ASANA_GID_MAP[name];
     const nowChecked = !checkedAsana[name];
     setCheckedAsana(p => ({ ...p, [name]: nowChecked }));
     if (!gid) return;
@@ -352,45 +345,101 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── Header ── */}
-      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 16px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <div>
-            {/* G Unit branding eyebrow */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px',
-                background: 'linear-gradient(90deg, rgba(52,211,153,0.15) 0%, rgba(52,211,153,0.05) 100%)',
-                border: '1px solid rgba(52,211,153,0.25)', borderRadius: '6px', padding: '4px 10px' }}>
-                <span style={{ color: '#34d399', fontSize: '12px', fontWeight: 800,
-                  letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>
-                  G Unit
-                </span>
-                <span style={{ color: 'rgba(52,211,153,0.4)', fontSize: '12px' }}>·</span>
-                <span style={{ color: 'rgba(52,211,153,0.7)', fontSize: '11px', fontWeight: 600,
-                  letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Daily Command Center
-                </span>
-              </div>
-              <span style={{ color: 'rgba(148,163,184,0.4)', fontSize: '11px' }}>CRDC</span>
-            </div>
-            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '30px',
-              color: '#fff', margin: 0, lineHeight: 1.15,
-              textShadow: '0 2px 20px rgba(52,211,153,0.15)' }}>
-              {greeting}, Gina. ☀️
-            </h1>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
+      {/* ── G Unit Banner — matches investment property dashboard style ── */}
+      <div style={{
+        width: '100%', position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4c1d95 55%, #2d1b69 80%, #1e1b4b 100%)',
+        borderBottom: '1px solid rgba(139,92,246,0.25)',
+      }}>
+        {/* SVG cityscape silhouette overlay */}
+        <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '100%', opacity: 0.12 }}
+          viewBox="0 0 1200 90" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0"    y="45" width="38"  height="45" fill="white"/>
+          <rect x="45"   y="20" width="55"  height="70" fill="white"/>
+          <rect x="52"   y="10" width="8"   height="10" fill="white"/>
+          <rect x="108"  y="35" width="30"  height="55" fill="white"/>
+          <rect x="145"  y="15" width="50"  height="75" fill="white"/>
+          <rect x="148"  y="5"  width="6"   height="10" fill="white"/>
+          <rect x="203"  y="40" width="35"  height="50" fill="white"/>
+          <rect x="245"  y="22" width="48"  height="68" fill="white"/>
+          <rect x="300"  y="30" width="42"  height="60" fill="white"/>
+          <rect x="349"  y="8"  width="65"  height="82" fill="white"/>
+          <rect x="356"  y="0"  width="10"  height="8"  fill="white"/>
+          <rect x="421"  y="38" width="32"  height="52" fill="white"/>
+          <rect x="460"  y="18" width="58"  height="72" fill="white"/>
+          <rect x="466"  y="8"  width="8"   height="10" fill="white"/>
+          <rect x="525"  y="42" width="28"  height="48" fill="white"/>
+          <rect x="560"  y="25" width="52"  height="65" fill="white"/>
+          <rect x="619"  y="12" width="70"  height="78" fill="white"/>
+          <rect x="627"  y="2"  width="12"  height="10" fill="white"/>
+          <rect x="696"  y="35" width="38"  height="55" fill="white"/>
+          <rect x="741"  y="20" width="55"  height="70" fill="white"/>
+          <rect x="803"  y="40" width="30"  height="50" fill="white"/>
+          <rect x="840"  y="10" width="60"  height="80" fill="white"/>
+          <rect x="847"  y="0"  width="10"  height="10" fill="white"/>
+          <rect x="907"  y="30" width="45"  height="60" fill="white"/>
+          <rect x="959"  y="22" width="52"  height="68" fill="white"/>
+          <rect x="1018" y="15" width="58"  height="75" fill="white"/>
+          <rect x="1025" y="5"  width="8"   height="10" fill="white"/>
+          <rect x="1083" y="38" width="35"  height="52" fill="white"/>
+          <rect x="1125" y="28" width="50"  height="62" fill="white"/>
+          <rect x="1180" y="45" width="30"  height="45" fill="white"/>
+        </svg>
+
+        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px 16px 18px',
+          position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* G avatar circle — teal, matching the investment dashboard */}
+          <div style={{
+            width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 0 3px rgba(16,185,129,0.35), 0 4px 16px rgba(0,0,0,0.3)',
+          }}>
+            <span style={{ color: '#fff', fontSize: '24px', fontWeight: 800,
+              fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
+
+          {/* Title block */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '26px',
+                color: '#fff', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                G <strong style={{ fontWeight: 700 }}>Unit</strong>
+              </span>
+              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '22px',
+                color: 'rgba(255,255,255,0.9)', fontWeight: 400, lineHeight: 1.1 }}>
+                Daily Command Center
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0', color: 'rgba(196,181,253,0.85)', fontSize: '11px',
+              fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Cancer Research Data Commons
+            </p>
+          </div>
+
+          {/* Live/Loading badge */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
             background: syncBg, border: `1px solid ${syncBorder}`,
-            borderRadius: '8px', padding: '6px 12px' }}>
+            borderRadius: '8px', padding: '6px 12px', flexShrink: 0 }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%',
               background: syncDotColor, display: 'inline-block' }} />
             <span style={{ color: syncTextColor, fontSize: '11px', fontWeight: 700 }}>{syncLabel}</span>
           </div>
         </div>
+      </div>
+
+      {/* ── Sub-header: greeting + stat pills + nav ── */}
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 16px' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px',
+            color: '#fff', margin: 0, lineHeight: 1.2 }}>
+            {greeting}, Gina. ☀️
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
+        </div>
 
         {/* Stat pills */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', margin: '20px 0 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', margin: '0 0 16px' }}>
           {[
             { label: 'Overdue',        value: overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'  },
             { label: 'Due this month', value: dueSoonCount,  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
@@ -639,7 +688,6 @@ export default function DailyCommandCenter() {
               </p>
             </div>
             <div style={{ padding: '12px 16px' }}>
-              {/* Add new todo */}
               <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)}
@@ -665,7 +713,6 @@ export default function DailyCommandCenter() {
                 </div>
               </div>
 
-              {/* Active todos */}
               {activeTodos.length === 0 ? (
                 <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                   No personal to-dos yet — add one above ✓
@@ -674,7 +721,6 @@ export default function DailyCommandCenter() {
                 activeTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)
               )}
 
-              {/* Completed section */}
               {completedTodos.length > 0 && (
                 <div style={{ marginTop: '16px' }}>
                   <button onClick={() => setShowCompleted(!showCompleted)}
