@@ -23,7 +23,18 @@ This is a **real deployed web application** — not a Claude artifact. It lives 
 - **Framework:** Create React App (not Vite)
 - **Entry point:** `src/App.jsx`
 
-At the start of every conversation, render `src/App.jsx` from the project files as an artifact in the side panel — this is the in-Claude preview. The real app is the deployed Vercel instance. After rendering it, proceed immediately with the Morning/Evening Sync.
+### ⚠️ CRITICAL — App Rendering Rule
+
+**At the start of every conversation, Claude MUST fetch the live `src/App.jsx` from GitHub using `github:get_file_contents` and render that as the artifact.** Do NOT use the `daily-command-center.jsx` file from the Claude project files — it is a stale snapshot that will always be out of date.
+
+**The correct render sequence every conversation:**
+1. Fetch `SKILL.md` via `web_fetch` (already done on conversation open)
+2. Fetch `src/App.jsx` via `github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="src/App.jsx")`
+3. Decode the base64 `content` field — that is the live React source
+4. Render it as a React artifact in the side panel
+5. Proceed with the Morning/Evening Sync
+
+This guarantees the in-Claude preview always matches what is deployed at https://daily-command-center-kappa.vercel.app/
 
 ---
 
@@ -94,7 +105,7 @@ This is the critical step — without it, the item only lives in the conversatio
 
 **Preferred flow — use bash_tool to call the live API:**
 ```bash
-curl -s -X POST "https://daily-command-center.vercel.app/api/todos?op=add" \
+curl -s -X POST "https://daily-command-center-kappa.vercel.app/api/todos?op=add" \
   -H "Content-Type: application/json" \
   -d '{"name":"Renew vehicle registration","due":"2026-03-31","priority":"high","source":"gmail","sourceRef":"DMV Registration Renewal Notice"}'
 ```
@@ -191,7 +202,7 @@ daily-command-center/
 │   └── architecture.svg
 ├── public/
 ├── src/
-│   ├── App.jsx        # Main React app
+│   ├── App.jsx        # Main React app — always fetch from GitHub, never use project file
 │   ├── api.js         # Browser-side fetch wrappers
 │   ├── index.js
 │   └── index.css
@@ -293,6 +304,7 @@ Upstash Redis is connected and live. Setup was completed March 2026.
 - [x] Todo source tagging (Gmail 📧 / Slack 💬 / Manual ✏️)
 - [x] Optimistic UI updates with server reconciliation
 - [x] SyncBadge on todo toggle
+- [x] **Claude always fetches live App.jsx from GitHub on every conversation** ✅
 
 ### 🔜 Planned
 - [ ] Claude directly POSTing confirmed todos via bash_tool during Morning Sync
@@ -313,4 +325,4 @@ Upstash Redis is connected and live. Setup was completed March 2026.
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.6*
+*Last updated: March 2026 — Daily Command Center v1.7*
