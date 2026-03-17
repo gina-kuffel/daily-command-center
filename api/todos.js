@@ -2,29 +2,32 @@
 // Vercel Serverless Function — Personal To-Do Store
 //
 // WHY THIS EXISTS:
-// The Personal To-Do list needs to be writable by Claude (server-side, via
-// the Anthropic API conversation) AND readable by the React app in the browser.
-// localStorage only lives in the browser — Claude can't touch it.
-// This API + Vercel KV creates a shared persistent store both can access.
+// The Personal To-Do list needs to be writable by Claude AND readable by the
+// React app in the browser. localStorage only lives in the browser — Claude
+// can't touch it. This API + Upstash Redis creates a shared persistent store
+// both can access.
 //
-// Vercel KV is a Redis-compatible key-value store, free tier, built into Vercel.
-// Enable it at: vercel.com → your project → Storage → Connect KV Store
-// Once connected, Vercel auto-injects KV_REST_API_URL and KV_REST_API_TOKEN.
+// SETUP (one time):
+// Vercel KV is sunset. Use Upstash Redis via the Vercel Marketplace instead:
+//   vercel.com → your project → Storage → Browse Marketplace → Upstash Redis
+// Once connected, Vercel auto-injects:
+//   UPSTASH_REDIS_REST_URL   — the REST endpoint
+//   UPSTASH_REDIS_REST_TOKEN — the auth token
 //
 // OPERATIONS (via ?op= query param):
 //   GET  ?op=list              — fetch all todos
-//   POST ?op=add               — add a new todo (body: { name, due?, priority?, source? })
+//   POST ?op=add               — add a new todo (body: { name, due?, priority?, source?, sourceRef? })
 //   POST ?op=toggle&id=<id>    — toggle completed state
 //   POST ?op=delete&id=<id>    — delete a todo
 //   POST ?op=update&id=<id>    — update fields (body: { name?, due?, priority?, completed? })
 //
 // SECURITY:
-// This endpoint is unauthenticated (personal tool, no public URL sharing).
-// If you ever make the Vercel URL public, add a shared secret check.
+// Unauthenticated — this is a personal tool. Don't share the Vercel URL publicly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+// Support both Upstash env var names AND the old Vercel KV names (fallback)
+const KV_URL   = process.env.UPSTASH_REDIS_REST_URL   || process.env.KV_REST_API_URL;
+const KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 const KV_KEY   = 'dcc:todos'; // the single Redis key holding the JSON array
 
 // ── KV helpers ────────────────────────────────────────────────────────────────
@@ -37,26 +40,29 @@ async function kvGet() {
   if (!res.ok) return [];
   const { result } = await res.json();
   if (!result) return [];
-  try { return JSON.parse(result); } catch { return []; }
+  // Upstash may return already-parsed JSON or a string — handle both
+  if (typeof result === 'string') {
+    try { return JSON.parse(result); } catch { return []; }
+  }
+  return Array.isArray(result) ? result : [];
 }
 
 async function kvSet(todos) {
-  if (!KV_URL || !KV_TOKEN) throw new Error('KV not configured');
+  if (!KV_URL || !KV_TOKEN) throw new Error('Redis not configured');
   const res = await fetch(`${KV_URL}/set/${KV_KEY}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(JSON.stringify(todos)), // KV stores strings
+    body: JSON.stringify(JSON.stringify(todos)), // store as JSON string
   });
-  if (!res.ok) throw new Error(`KV set failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Redis set failed: ${res.status}`);
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
-  // CORS — allow the deployed Vercel app and localhost dev
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -64,7 +70,8 @@ module.exports = async function handler(req, res) {
 
   if (!KV_URL || !KV_TOKEN) {
     return res.status(503).json({
-      error: 'Vercel KV not configured. Go to vercel.com → your project → Storage → Create KV Store, then redeploy.',
+      error: 'Redis not configured. Go to vercel.com → your project → Storage → Marketplace → Upstash Redis, then redeploy.',
+      kvMissing: true,
     });
   }
 
@@ -95,7 +102,7 @@ module.exports = async function handler(req, res) {
         due:       body.due       || null,
         priority:  body.priority  || null,
         source:    body.source    || 'manual',  // 'manual' | 'gmail' | 'slack'
-        sourceRef: body.sourceRef || null,       // e.g. Gmail message subject
+        sourceRef: body.sourceRef || null,
         completed: false,
         createdAt: new Date().toISOString(),
       };
