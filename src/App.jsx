@@ -81,6 +81,12 @@ const statusConfig = {
   'Open':                 { bg: '#f8fafc', text: '#475569', border: '#e2e8f0' },
 };
 
+const todoPriorityConfig = {
+  high:   { bg: '#fef2f2', text: '#991b1b', border: '#fecaca', label: 'High'   },
+  medium: { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa', label: 'Medium' },
+  low:    { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0', label: 'Low'    },
+};
+
 // ─── Components ───────────────────────────────────────────────────────────────
 
 const SyncBadge = ({ status }) => {
@@ -203,6 +209,43 @@ const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   </div>
 );
 
+const TodoItem = ({ item, onToggle, onDelete }) => {
+  const isOverdue = item.due && item.due < todayStr && !item.completed;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px',
+      borderRadius: '8px', marginBottom: '4px',
+      background: item.completed ? '#fafafa' : isOverdue ? '#fff5f5' : '#fafafa',
+      border: isOverdue && !item.completed ? '1px solid #fecaca' : '1px solid #f1f5f9',
+      opacity: item.completed ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+      <input type="checkbox" checked={item.completed} onChange={() => onToggle(item.id)}
+        style={{ marginTop: '2px', cursor: 'pointer', accentColor: '#8b5cf6' }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '2px' }}>
+          {item.priority && (
+            <Badge label={todoPriorityConfig[item.priority].label}
+              config={todoPriorityConfig[item.priority]} />
+          )}
+          <p style={{ margin: 0, fontSize: '12px', lineHeight: '1.4',
+            color: item.completed ? '#94a3b8' : '#334155',
+            textDecoration: item.completed ? 'line-through' : 'none' }}>
+            {item.name}
+          </p>
+        </div>
+        {item.due && (
+          <span style={{ fontSize: '10px', display: 'block',
+            color: isOverdue ? '#dc2626' : '#64748b',
+            fontWeight: isOverdue ? 700 : 400 }}>
+            {isOverdue ? '⚠ OVERDUE — ' : 'Due '}{item.due}
+          </span>
+        )}
+      </div>
+      <button onClick={() => onDelete(item.id)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer',
+          color: '#cbd5e1', fontSize: '14px', lineHeight: 1, padding: '2px', marginTop: '1px' }}>×</button>
+    </div>
+  );
+};
+
 // ─── Main app ─────────────────────────────────────────────────────────────────
 
 export default function DailyCommandCenter() {
@@ -215,6 +258,28 @@ export default function DailyCommandCenter() {
   const [jiraFilter, setJiraFilter]             = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
+  // ── Personal To-Do state ─────────────────────────────────────────────────
+  const [todos, setTodos]           = useState([]);
+  const [newTodo, setNewTodo]       = useState('');
+  const [newTodoDue, setNewTodoDue] = useState('');
+  const [newTodoPri, setNewTodoPri] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    setTodos(p => [...p, {
+      id: Date.now(),
+      name: newTodo.trim(),
+      due: newTodoDue || null,
+      priority: newTodoPri || null,
+      completed: false,
+    }]);
+    setNewTodo(''); setNewTodoDue(''); setNewTodoPri('');
+  };
+  const toggleTodo  = (id) => setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const deleteTodo  = (id) => setTodos(p => p.filter(t => t.id !== id));
+
+  // ── Live Jira state ───────────────────────────────────────────────────────
   const [jiraTasks, setJiraTasks]     = useState([]);
   const [jiraLoading, setJiraLoading] = useState(true);
   const [jiraError, setJiraError]     = useState(false);
@@ -244,12 +309,14 @@ export default function DailyCommandCenter() {
     setNewGrocery('');
   };
 
-  const criticalCount = jiraTasks.filter(t => t.priority === 'Critical').length;
-  const reviewCount   = jiraTasks.filter(t =>
+  const criticalCount  = jiraTasks.filter(t => t.priority === 'Critical').length;
+  const reviewCount    = jiraTasks.filter(t =>
     t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
   ).length;
-  const overdueCount  = asanaTasks.filter(t => t.overdue).length;
-  const dueSoonCount  = asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length;
+  const overdueCount   = asanaTasks.filter(t => t.overdue).length;
+  const dueSoonCount   = asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length;
+  const activeTodos    = todos.filter(t => !t.completed);
+  const completedTodos = todos.filter(t => t.completed);
 
   const filteredJira = jiraTasks.filter(t => {
     const productMatch  = jiraFilter === 'All' || t.product === jiraFilter;
@@ -261,6 +328,7 @@ export default function DailyCommandCenter() {
     { id: 'briefing', label: 'Briefing', icon: '◉' },
     { id: 'jira',     label: 'Jira',     icon: '⊞' },
     { id: 'asana',    label: 'Asana',    icon: '◎' },
+    { id: 'todo',     label: 'To-Do',    icon: '🏠' },
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
@@ -268,10 +336,16 @@ export default function DailyCommandCenter() {
     <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
   );
 
-  const syncBadgeColor = jiraLoading ? 'rgba(245,158,11,0.3)' : jiraError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
-  const syncDotColor   = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
-  const syncTextColor  = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
-  const syncLabel      = jiraLoading ? 'Loading…' : jiraError ? 'Jira error' : 'Live';
+  const syncDotColor  = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
+  const syncTextColor = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
+  const syncBorder    = jiraLoading ? 'rgba(245,158,11,0.3)' : jiraError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
+  const syncBg        = jiraLoading ? 'rgba(245,158,11,0.1)' : jiraError ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)';
+  const syncLabel     = jiraLoading ? 'Loading…' : jiraError ? 'Jira error' : 'Live';
+
+  const inputStyle = {
+    padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+    fontSize: '13px', outline: 'none', fontFamily: 'inherit', background: '#fff',
+  };
 
   return (
     <div style={{ minHeight: '100vh', fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
@@ -279,21 +353,36 @@ export default function DailyCommandCenter() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
       {/* ── Header ── */}
-      <div style={{ maxWidth: '860px', margin: '0 auto', padding: '32px 16px 16px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 16px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '4px' }}>
           <div>
-            <p style={{ color: '#34d399', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em',
-              textTransform: 'uppercase', margin: '0 0 8px' }}>
-              G Unit Daily Command Center · CRDC
-            </p>
-            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px', color: '#fff', margin: 0, lineHeight: 1.2 }}>
+            {/* G Unit branding eyebrow */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '0 0 10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px',
+                background: 'linear-gradient(90deg, rgba(52,211,153,0.15) 0%, rgba(52,211,153,0.05) 100%)',
+                border: '1px solid rgba(52,211,153,0.25)', borderRadius: '6px', padding: '4px 10px' }}>
+                <span style={{ color: '#34d399', fontSize: '12px', fontWeight: 800,
+                  letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'DM Sans', sans-serif" }}>
+                  G Unit
+                </span>
+                <span style={{ color: 'rgba(52,211,153,0.4)', fontSize: '12px' }}>·</span>
+                <span style={{ color: 'rgba(52,211,153,0.7)', fontSize: '11px', fontWeight: 600,
+                  letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Daily Command Center
+                </span>
+              </div>
+              <span style={{ color: 'rgba(148,163,184,0.4)', fontSize: '11px' }}>CRDC</span>
+            </div>
+            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '30px',
+              color: '#fff', margin: 0, lineHeight: 1.15,
+              textShadow: '0 2px 20px rgba(52,211,153,0.15)' }}>
               {greeting}, Gina. ☀️
             </h1>
             <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
           </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: `rgba(${jiraLoading ? '245,158,11' : jiraError ? '239,68,68' : '52,211,153'},0.1)`,
-            border: `1px solid ${syncBadgeColor}`, borderRadius: '8px', padding: '6px 12px' }}>
+            background: syncBg, border: `1px solid ${syncBorder}`,
+            borderRadius: '8px', padding: '6px 12px' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%',
               background: syncDotColor, display: 'inline-block' }} />
             <span style={{ color: syncTextColor, fontSize: '11px', fontWeight: 700 }}>{syncLabel}</span>
@@ -335,12 +424,11 @@ export default function DailyCommandCenter() {
       </div>
 
       {/* ── Content ── */}
-      <div style={{ maxWidth: '860px', margin: '0 auto', padding: '0 16px 48px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 16px 48px' }}>
 
         {/* ── BRIEFING ── */}
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px' }}>
@@ -379,6 +467,23 @@ export default function DailyCommandCenter() {
                 ))}
               </div>
             </div>
+
+            {activeTodos.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+                <div style={{ padding: '16px 20px 4px' }}>
+                  <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🏠 Personal To-Do</h2>
+                </div>
+                <div style={{ padding: '0 16px 16px' }}>
+                  {activeTodos.slice(0, 5).map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)}
+                  {activeTodos.length > 5 && (
+                    <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', margin: '8px 0 0' }}>
+                      +{activeTodos.length - 5} more — see To-Do tab
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -492,8 +597,7 @@ export default function DailyCommandCenter() {
               </p>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
-              <Section title="Overdue" icon="🔴" defaultOpen={true}
-                count={asanaTasks.filter(t => t.overdue).length}>
+              <Section title="Overdue" icon="🔴" defaultOpen={true} count={asanaTasks.filter(t => t.overdue).length}>
                 {asanaTasks.filter(t => t.overdue).map(t => (
                   <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
                     syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
@@ -520,6 +624,74 @@ export default function DailyCommandCenter() {
                     syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
                 ))}
               </Section>
+            </div>
+          </div>
+        )}
+
+        {/* ── PERSONAL TO-DO ── */}
+        {activeView === 'todo' && (
+          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9' }}>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>🏠 Personal To-Do</h2>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                {activeTodos.length} active · {completedTodos.length} completed
+              </p>
+            </div>
+            <div style={{ padding: '12px 16px' }}>
+              {/* Add new todo */}
+              <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addTodo()}
+                    placeholder="Add a personal to-do…"
+                    style={{ ...inputStyle, flex: 1 }} />
+                  <button onClick={addTodo}
+                    style={{ padding: '9px 16px', borderRadius: '8px', background: '#7c3aed',
+                      color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    Add
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input type="date" value={newTodoDue} onChange={e => setNewTodoDue(e.target.value)}
+                    style={{ ...inputStyle, flex: 1, color: newTodoDue ? '#334155' : '#94a3b8' }} />
+                  <select value={newTodoPri} onChange={e => setNewTodoPri(e.target.value)}
+                    style={{ ...inputStyle, flex: 1, color: newTodoPri ? '#334155' : '#94a3b8' }}>
+                    <option value="">Priority (optional)</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Active todos */}
+              {activeTodos.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                  No personal to-dos yet — add one above ✓
+                </p>
+              ) : (
+                activeTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)
+              )}
+
+              {/* Completed section */}
+              {completedTodos.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <button onClick={() => setShowCompleted(!showCompleted)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
+                      display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600,
+                      textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {showCompleted ? '▲' : '▼'} Completed ({completedTodos.length})
+                    </span>
+                  </button>
+                  {showCompleted && (
+                    <div style={{ marginTop: '8px' }}>
+                      {completedTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
