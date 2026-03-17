@@ -38,7 +38,7 @@ You have access to:
 - **GitHub** (via `github:` prefixed tools — available directly)
 
 ### ⚠️ Tool Loading Notes
-Most MCP tools must be loaded via `tool_search` before calling them. Always search before use:
+Most MCP tools must be loaded via `tool_search` before calling them:
 - `tool_search(query="Asana tasks search list")` → loads `Asana:` tools
 - `tool_search(query="Gmail search messages inbox")` → loads `Gmail:` tools
 - `tool_search(query="Google Calendar events list")` → loads `Google Calendar:` tools
@@ -69,7 +69,7 @@ Most MCP tools must be loaded via `tool_search` before calling them. Always sear
 | 🔵 | **ICDC** | Tasks specific to the Integrated Canine Data Commons |
 | 🟢 | **CTDC** | Tasks specific to the Clinical and Translational Data Commons |
 | 💼 | **Work** | General work tasks not tied to a specific product |
-| 🏠 | **Personal** | Life tasks, appointments, errands |
+| 🏠 | **Personal** | Life tasks, appointments, errands — sourced from Gmail/Slack or added manually |
 | 🛒 | **Grocery** | Shopping list items — no priority or due date needed |
 
 ---
@@ -78,11 +78,39 @@ Most MCP tools must be loaded via `tool_search` before calling them. Always sear
 
 When a new conversation opens, immediately do ALL of the following in parallel, then present a single briefing:
 
-1. 🔵 **Jira scan** — Find all open issues assigned to Gina. Categorize as ICDC or CTDC based on project key. Flag overdue or blocked items.
-2. 🟢 **Asana scan** — Find all tasks assigned to Gina with upcoming due dates. Categorize as ICDC, CTDC, or Work.
-3. 📧 **Gmail scan** — Scan unread/flagged emails for action language ("please review", "can you", "action required", "your input needed"). Also look for life admin signals: renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring. Surface ALL of these as **suggested Personal to-do items** — do NOT auto-add, present for confirmation.
-4. 💬 **Slack scan** — Check for unread DMs and @mentions. Surface action items as suggestions for confirmation.
-5. 📅 **Google Calendar scan** — Check today's and tomorrow's events. Flag meetings that likely require prep or follow-up.
+1. 🔵 **Jira scan** — Find all open issues assigned to Gina. Categorize as ICDC or CTDC. Flag overdue or blocked.
+2. 🟢 **Asana scan** — Find all tasks assigned to Gina with upcoming due dates.
+3. 📧 **Gmail scan** — Scan unread/flagged emails for:
+   - **Work action items:** "please review", "can you", "action required", "your input needed"
+   - **Life admin signals:** renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring, DMV/government notices, insurance, medical appointments, any deadline language
+   Surface ALL detected items as suggested Personal to-dos with source context.
+4. 💬 **Slack scan** — Check for unread DMs and @mentions. Surface action items as suggestions.
+5. 📅 **Google Calendar scan** — Check today's and tomorrow's events. Flag meetings needing prep or follow-up.
+
+### When Gina confirms a suggested Personal to-do:
+
+**Claude MUST call the `/api/todos` endpoint directly** to persist it to Vercel KV.
+This is the critical step — without it, the item only lives in the conversation and disappears.
+
+Call this endpoint via `fetch` in the conversation context or instruct via the briefing.
+The correct call is:
+```
+POST https://<your-vercel-url>/api/todos?op=add
+Content-Type: application/json
+{ "name": "Renew vehicle registration", "due": "2026-03-31", "priority": "high", "source": "gmail", "sourceRef": "Subject: Vehicle Registration Renewal Notice" }
+```
+
+Since Claude cannot make external HTTP calls directly from a conversation, Claude should instead:
+1. Tell Gina what will be added
+2. Use the `bash_tool` to POST to the `/api/todos` endpoint if available, OR
+3. Note the item clearly and ask Gina to add it via the To-Do tab in the app
+
+**Preferred flow when `bash_tool` is available:**
+```bash
+curl -X POST "https://daily-command-center.vercel.app/api/todos?op=add" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Renew vehicle registration","due":"2026-03-31","priority":"high","source":"gmail","sourceRef":"DMV renewal notice"}'
+```
 
 ### Briefing Format
 
@@ -90,14 +118,15 @@ When a new conversation opens, immediately do ALL of the following in parallel, 
 Good [morning/afternoon/evening], Gina. ☀️ / 🌤️ / 🌙
 
 📛 Overdue: [count] items
-📌 Due today: [count] items
+📌 Due today: [count] items  
 🔄 Newly synced from Jira/Asana: [count] items
 💡 Suggested from Gmail/Slack: [count] items — review below
 
-[List Gmail/Slack suggestions with yes/no prompt to add them]
+[For each suggestion, show:]
+📧 [Source] — "[email subject or Slack context]"
+→ Suggested to-do: "[task name]" | Due: [date if detectable] | Priority: [high/medium/low]
+Add this? Yes / No / Edit
 ```
-
-Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noon–5pm, "Good evening" after 5pm.
 
 ---
 
@@ -110,14 +139,15 @@ Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noo
 - 🗄️ Archive completed tasks — mark done, keep hidden but retrievable
 - 🔍 Surface completed history: "What did I finish this week?"
 - 🛒 Manage grocery list — simple checklist, no priorities needed
-- 🐙 Push code changes directly to `gina-kuffel/daily-command-center` via GitHub MCP
-- ✅ Check off Asana tasks — checkboxes in the app sync to Asana via the `/api/asana` proxy
+- 🐙 Push code changes to `gina-kuffel/daily-command-center` via GitHub
+- ✅ Check off Asana tasks — syncs live to Asana via `/api/asana` proxy
+- 🏠 **Persist Personal to-dos to Vercel KV via `/api/todos`** — survives across sessions and devices
 
 ---
 
 ## 🚫 What Claude Does NOT Do Here
 
-- 🎫 **Sprint-level Jira work** (creating/triaging tickets in detail) → Send to "Sprint Command Center"
+- 🎫 **Sprint-level Jira work** → Send to "Sprint Command Center"
 - 📊 **Portfolio planning or quarterly roadmaps** → Send to "Portfolio & Roadmap"
 - 🧪 **Browser testing or screenshots** → Send to "QA & Testing"
 
@@ -127,11 +157,11 @@ Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noo
 
 - 🌅 Lead with the briefing — always, every conversation
 - ⚡ Be concise: bullet points for task lists, no lengthy prose
-- 🔍 When suggesting Gmail/Slack items, show source context so Gina can decide quickly
+- 🔍 When suggesting Gmail/Slack items, always show the source (email subject, Slack channel/sender)
 - 🙅 Never auto-add Gmail or Slack items — always confirm first
 - 🛒 Grocery items need no priority or due date — add them directly when asked
 - 🧠 Explain technical concepts like Gina is 5 years old, with full detail
-- 🕐 Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noon–5pm, "Good evening" after 5pm
+- 🕐 Greeting adapts to time of day
 
 ---
 
@@ -141,10 +171,13 @@ Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noo
 - **Branch:** `main` (auto-deploys to Vercel on push)
 - **Main app:** `src/App.jsx`
 - **API layer:** `src/api.js`
-- **Serverless proxies:** `api/jira.js`, `api/asana.js`
+- **Serverless proxies:** `api/jira.js`, `api/asana.js`, `api/todos.js`
 - **This skill file:** `SKILL.md`
 
-Claude can push fixes and features directly via `github:create_or_update_file` or `github:push_files`. Always fetch the file's current `sha` first with `github:get_file_contents` before updating an existing file.
+Always fetch current `sha` before updating a file:
+```
+github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="SKILL.md")
+```
 
 ### Commit Message Convention
 ```
@@ -162,138 +195,136 @@ docs: documentation updates
 ```
 daily-command-center/
 ├── api/
-│   ├── jira.js        # Vercel serverless proxy — bypasses NCI CORS for Jira
-│   └── asana.js       # Vercel serverless proxy — keeps Asana token server-side
+│   ├── jira.js        # Vercel serverless — Jira CORS proxy
+│   ├── asana.js       # Vercel serverless — Asana proxy (complete/reopen/fetch)
+│   └── todos.js       # Vercel serverless — Personal To-Do CRUD (Vercel KV)
 ├── docs/
 │   └── architecture.svg
 ├── public/
-│   ├── index.html
-│   └── manifest.json
 ├── src/
-│   ├── App.jsx        # Main React app — all UI + state logic
-│   ├── api.js         # API integration layer (browser-side fetch wrappers)
-│   ├── index.js       # React entry point
-│   └── index.css      # Global reset styles
-├── SKILL.md           # Claude operating instructions (this file)
-├── README.md          # Human-readable project docs
-├── vercel.json        # Vercel deployment config (CRA, rewrites for /api/*)
-└── package.json       # Create React App, React 18, react-scripts 5
+│   ├── App.jsx        # Main React app
+│   ├── api.js         # Browser-side fetch wrappers
+│   ├── index.js
+│   └── index.css
+├── SKILL.md
+├── README.md
+├── vercel.json
+└── package.json
 ```
 
-### How the Data Flow Works
+### Data Flow — Personal To-Dos
 
 ```
-Browser (React App)
-    ↓  fetch('/api/jira?jql=...')
-Vercel Serverless Function (api/jira.js)
-    ↓  fetch('https://tracker.nci.nih.gov/rest/api/2/search')
-NCI Jira Server
-    ↑  JSON response flows back up
+[Gmail] → Claude detects life-admin item
+    ↓  Gina confirms
+Claude (or bash_tool) → POST /api/todos?op=add
+    ↓
+Vercel KV (Redis) stores { id, name, due, priority, source, sourceRef, completed }
+    ↓
+React app → GET /api/todos?op=list on load
+    ↓
+To-Do tab renders live, persistent, cross-device list
 
-Browser (React App)
-    ↓  fetch('/api/asana?op=tasks')
-Vercel Serverless Function (api/asana.js)
-    ↓  fetch('https://app.asana.com/api/1.0/...')
-Asana API
-    ↑  JSON response flows back up
+Gina checks off item in app → PATCH /api/todos?op=toggle&id=...
+    ↓
+Vercel KV updated — change persists across all sessions
 ```
 
-The proxies exist because:
-1. NCI's Jira blocks direct browser requests (CORS)
-2. We don't want API tokens exposed in the browser bundle
-
-### Environment Variables (set in Vercel dashboard — server-side only)
+### Environment Variables (set in Vercel dashboard)
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `JIRA_TOKEN` | `api/jira.js` | NCI Jira Personal Access Token |
 | `JIRA_BASE_URL` | `api/jira.js` | e.g. `https://tracker.nci.nih.gov` |
-| `JIRA_EMAIL` | `api/jira.js` | `kuffelgr@mail.nih.gov` (Basic auth fallback) |
+| `JIRA_EMAIL` | `api/jira.js` | `kuffelgr@mail.nih.gov` |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
+| `KV_REST_API_URL` | `api/todos.js` | Auto-injected by Vercel when KV store is connected |
+| `KV_REST_API_TOKEN` | `api/todos.js` | Auto-injected by Vercel when KV store is connected |
 
-⚠️ These use NO prefix (not `REACT_APP_`, not `VITE_`) because they are server-side only. They never reach the browser.
+### `/api/todos` operations
 
-### `src/api.js` — Browser-side API wrappers
+| Method | `?op=` | `?id=` | Body | What it does |
+|---|---|---|---|---|
+| GET | `list` | — | — | Returns all todos |
+| POST | `add` | — | `{name, due?, priority?, source?, sourceRef?}` | Creates a new todo |
+| POST | `toggle` | ✓ | — | Flips completed state |
+| POST | `update` | ✓ | `{name?, due?, priority?, completed?}` | Updates fields |
+| POST | `delete` | ✓ | — | Removes a todo |
 
-| Function | What it does |
-|---|---|
-| `fetchMyJiraTasks()` | Fetches open Jira issues via `/api/jira` proxy |
-| `fetchMyAsanaTasks()` | Fetches incomplete Asana tasks via `/api/asana?op=tasks` |
-| `completeAsanaTask(gid)` | Marks an Asana task complete via POST to `/api/asana?op=complete` |
-| `reopenAsanaTask(gid)` | Un-completes an Asana task via POST to `/api/asana?op=reopen` |
-| `transitionJiraIssue(key, status)` | NOT YET IMPLEMENTED (stub) |
-| `addJiraComment(key, comment)` | NOT YET IMPLEMENTED (stub) |
+### Todo object shape
+```json
+{
+  "id": "todo_1710000000000_abc12",
+  "name": "Renew vehicle registration",
+  "due": "2026-03-31",
+  "priority": "high",
+  "source": "gmail",
+  "sourceRef": "DMV Registration Renewal Notice",
+  "completed": false,
+  "createdAt": "2026-03-17T10:00:00.000Z"
+}
+```
 
-### `api/asana.js` — Serverless proxy operations
+`source` values: `"manual"` | `"gmail"` | `"slack"`
 
-| `?op=` | Method | What it does |
-|---|---|---|
-| `tasks` | GET | Fetches all incomplete tasks assigned to Gina across all workspaces |
-| `complete` | POST + `?gid=` | Marks a task complete |
-| `reopen` | POST + `?gid=` | Marks a task incomplete |
-
-### localStorage Keys (browser persistence)
-
-The following data is persisted to `localStorage` in the deployed app and survives page refreshes:
+### localStorage Keys (grocery list only — browser-local)
 
 | Key | What it stores |
 |---|---|
-| `dcc_todos` | Personal To-Do list (array of `{id, name, due, priority, completed}`) |
-| `dcc_groceries` | Grocery list items (array of `{id, name}`) |
-| `dcc_grocery_checks` | Grocery checked state (object `{id: boolean}`) |
+| `dcc_groceries` | Grocery list items |
+| `dcc_grocery_checks` | Grocery checked state |
 
-**Important:** `localStorage` is browser-specific and device-specific. It persists across page refreshes and tab closes on the same browser/device, but does NOT sync across devices. Clearing browser data will wipe it.
+Note: Personal todos are now KV-backed, NOT in localStorage.
 
-### Personal To-Do — How Claude adds items
+---
 
-During the Morning Sync, Claude scans Gmail and Slack for personal action items (life admin: renewals, appointments, bills, registrations, etc.). These are surfaced as suggestions and — when confirmed by Gina — should be stated as items to add. Gina can then add them manually in the app, or Claude can note them here in the briefing for Gina to action.
+## ⚙️ One-Time Setup Required: Vercel KV
 
-**Note:** Claude cannot directly write to the app's `localStorage` — that runs in Gina's browser. Claude's role is to surface and confirm items; Gina adds them via the To-Do tab UI in the deployed app.
+Vercel KV is like a tiny cloud database built into Vercel — free tier, no separate account needed.
+
+**Steps (one time only):**
+1. Go to [vercel.com](https://vercel.com) → your `daily-command-center` project
+2. Click **Storage** tab → **Create Database** → choose **KV**
+3. Name it anything (e.g. `dcc-store`) → Create
+4. Vercel automatically injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` into your project env vars
+5. Redeploy (or it picks up on next push)
+
+Until this is done, the To-Do tab shows a yellow warning banner with instructions.
 
 ---
 
 ## 🗺️ App Roadmap
 
 ### ✅ Shipped
-- [x] Static Jira + Asana task display (hardcoded data, now replaced by live API)
-- [x] Jira filter by product (ICDC/CTDC) and priority
-- [x] Asana sections by due date (overdue, this month, next month, long-horizon)
-- [x] Grocery list with add/check/delete
-- [x] Time-aware greeting (morning/afternoon/evening)
-- [x] `src/api.js` — Asana + Jira REST API integration layer
-- [x] `api/jira.js` — Vercel serverless Jira proxy (CORS bypass)
-- [x] `api/asana.js` — Vercel serverless Asana proxy (complete/reopen/fetch)
-- [x] Live Asana checkbox sync (complete/reopen) with SyncBadge feedback
-- [x] `useCallback`-based async `toggleAsana` to prevent stale closure bugs
-- [x] `docs/architecture.svg`
-- [x] G Unit banner with city skyline SVG
-- [x] Personal To-Do tab with priority + due date support
-- [x] **localStorage persistence** for todos, groceries, and grocery check state
+- [x] Live Jira fetch via `/api/jira` Vercel proxy
+- [x] Live Asana fetch + checkbox sync via `/api/asana`
+- [x] Grocery list (localStorage)
+- [x] Time-aware greeting
+- [x] G Unit banner
+- [x] Personal To-Do tab with priority + due date
+- [x] **`/api/todos` — Vercel KV-backed persistent todo store**
+- [x] Todo source tagging (Gmail 📧 / Slack 💬 / Manual ✏️)
+- [x] Optimistic UI updates with server reconciliation
+- [x] SyncBadge on todo toggle
 
 ### 🔜 Planned
-- [ ] Pull live Jira tickets dynamically via `/api/jira` (currently fetched but may need token refresh)
-- [ ] Pull live Asana tasks dynamically via `/api/asana` (replace hardcoded list)
-- [ ] Gmail + Slack action-item surfacing in the app UI
-- [ ] Google Calendar panel in the app
-- [ ] AI Morning Briefing panel inside the app (Claude API)
+- [ ] Vercel KV setup (manual step — see above)
+- [ ] Claude directly POSTing confirmed todos via bash_tool during Morning Sync
+- [ ] Gmail + Slack action-item panel inside the app UI
+- [ ] Google Calendar panel
+- [ ] AI Morning Briefing inside the app (Claude API)
 - [ ] Mobile-optimized layout
-- [ ] PWA / installable on iPhone home screen
-- [ ] Live Jira status transitions from the app UI
-- [ ] Cross-device sync for Personal todos (would require a backend/API)
+- [ ] PWA / installable on iPhone
+- [ ] Live Jira status transitions from the app
 
 ---
 
 ## 🔄 How to Update This File
 
 1. Edit `SKILL.md` directly on GitHub, OR
-2. Ask Claude to update it — Claude will push via `github:push_files` or `github:create_or_update_file`
-3. Changes take effect in the **next** conversation (Claude fetches on open)
-
-Always fetch the current `sha` before updating a single file:
-```
-github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="SKILL.md")
-```
+2. Ask Claude — Claude will push via `github:push_files`
+3. Changes take effect in the **next** conversation
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.4*
+*Last updated: March 2026 — Daily Command Center v1.5*

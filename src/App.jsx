@@ -1,5 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
-import { completeAsanaTask, reopenAsanaTask, fetchMyJiraTasks, fetchMyAsanaTasks } from './api.js';
+import {
+  completeAsanaTask, reopenAsanaTask,
+  fetchMyJiraTasks, fetchMyAsanaTasks,
+  fetchTodos, addTodoAPI, toggleTodoAPI, deleteTodoAPI,
+} from './api.js';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 const today    = new Date();
@@ -15,23 +19,17 @@ const thisMonthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 
 const nextMonthLabel = new Date(today.getFullYear(), today.getMonth() + 1, 1)
   .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-// ─── localStorage helpers ─────────────────────────────────────────────────────
-// Read a JSON value from localStorage, returning `fallback` if missing or corrupt.
+// ─── localStorage helpers (grocery list only) ─────────────────────────────────
 function lsGet(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw !== null ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
-
-// Write a value as JSON to localStorage. Silent on error.
 function lsSet(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota exceeded etc */ }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota */ }
 }
 
-// ─── Default grocery list (only used when localStorage is empty) ──────────────
 const DEFAULT_GROCERIES = [
   { id: 1, name: 'Eggs' },
   { id: 2, name: 'Almond milk' },
@@ -62,6 +60,12 @@ const todoPriorityConfig = {
   high:   { bg: '#fef2f2', text: '#991b1b', border: '#fecaca', label: 'High'   },
   medium: { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa', label: 'Medium' },
   low:    { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0', label: 'Low'    },
+};
+
+const sourceConfig = {
+  gmail: { emoji: '📧', label: 'Gmail', color: '#ea4335' },
+  slack: { emoji: '💬', label: 'Slack', color: '#4a154b' },
+  manual: { emoji: '✏️', label: 'Manual', color: '#64748b' },
 };
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -186,26 +190,36 @@ const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   </div>
 );
 
-const TodoItem = ({ item, onToggle, onDelete }) => {
+const TodoItem = ({ item, onToggle, onDelete, syncStatus }) => {
   const isOverdue = item.due && item.due < todayStr && !item.completed;
+  const src = sourceConfig[item.source] || sourceConfig.manual;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px',
       borderRadius: '8px', marginBottom: '4px',
       background: isOverdue && !item.completed ? '#fff5f5' : '#fafafa',
       border: isOverdue && !item.completed ? '1px solid #fecaca' : '1px solid #f1f5f9',
       opacity: item.completed ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-      <input type="checkbox" checked={item.completed} onChange={() => onToggle(item.id)}
+      <input type="checkbox" checked={item.completed}
+        onChange={() => onToggle(item.id)}
+        disabled={syncStatus === 'syncing'}
         style={{ marginTop: '2px', cursor: 'pointer', accentColor: '#8b5cf6' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '2px' }}>
           {item.priority && (
             <Badge label={todoPriorityConfig[item.priority].label} config={todoPriorityConfig[item.priority]} />
           )}
+          {item.source && item.source !== 'manual' && (
+            <span title={item.sourceRef || src.label}
+              style={{ fontSize: '10px', color: src.color, fontWeight: 600 }}>
+              {src.emoji} {src.label}
+            </span>
+          )}
           <p style={{ margin: 0, fontSize: '12px', lineHeight: '1.4',
             color: item.completed ? '#94a3b8' : '#334155',
             textDecoration: item.completed ? 'line-through' : 'none' }}>
             {item.name}
           </p>
+          <SyncBadge status={syncStatus} />
         </div>
         {item.due && (
           <span style={{ fontSize: '10px', display: 'block',
@@ -228,31 +242,76 @@ const LoadingRows = ({ message, color = '#f59e0b' }) => (
 // ─── Main app ─────────────────────────────────────────────────────────────────
 
 export default function DailyCommandCenter() {
-  const [activeView, setActiveView]             = useState('briefing');
-  const [asyncStatus, setAsyncStatus]           = useState({});
-  const [checkedAsana, setCheckedAsana]         = useState({});
-  const [jiraFilter, setJiraFilter]             = useState('All');
+  const [activeView, setActiveView]         = useState('briefing');
+  const [asyncStatus, setAsyncStatus]       = useState({});
+  const [todoSyncStatus, setTodoSyncStatus] = useState({});
+  const [checkedAsana, setCheckedAsana]     = useState({});
+  const [jiraFilter, setJiraFilter]         = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── Personal To-Do — persisted to localStorage ───────────────────────────
-  const [todos, setTodos]                 = useState(() => lsGet('dcc_todos', []));
-  const [newTodo, setNewTodo]             = useState('');
-  const [newTodoDue, setNewTodoDue]       = useState('');
-  const [newTodoPri, setNewTodoPri]       = useState('');
+  // ── Personal To-Do — KV-backed via /api/todos ─────────────────────────────
+  const [todos, setTodos]               = useState([]);
+  const [todosLoading, setTodosLoading] = useState(true);
+  const [todosError, setTodosError]     = useState(null); // null | 'kv_missing' | 'error'
+  const [newTodo, setNewTodo]           = useState('');
+  const [newTodoDue, setNewTodoDue]     = useState('');
+  const [newTodoPri, setNewTodoPri]     = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
 
-  useEffect(() => { lsSet('dcc_todos', todos); }, [todos]);
+  const loadTodos = useCallback(async () => {
+    setTodosLoading(true);
+    const { todos: fetched, kvMissing } = await fetchTodos();
+    setTodos(fetched);
+    setTodosError(kvMissing ? 'kv_missing' : null);
+    setTodosLoading(false);
+  }, []);
 
-  const addTodo = () => {
+  useEffect(() => { loadTodos(); }, [loadTodos]);
+
+  const handleAddTodo = async () => {
     if (!newTodo.trim()) return;
-    setTodos(p => [...p, { id: Date.now(), name: newTodo.trim(),
-      due: newTodoDue || null, priority: newTodoPri || null, completed: false }]);
+    const optimistic = {
+      id: `optimistic_${Date.now()}`,
+      name: newTodo.trim(),
+      due: newTodoDue || null,
+      priority: newTodoPri || null,
+      source: 'manual',
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+    setTodos(p => [optimistic, ...p]);
     setNewTodo(''); setNewTodoDue(''); setNewTodoPri('');
-  };
-  const toggleTodo = (id) => setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const deleteTodo = (id) => setTodos(p => p.filter(t => t.id !== id));
 
-  // ── Grocery list — persisted to localStorage ─────────────────────────────
+    const result = await addTodoAPI({
+      name: optimistic.name,
+      due: optimistic.due,
+      priority: optimistic.priority,
+    });
+    if (result.success) {
+      // Replace optimistic entry with real one from server
+      setTodos(p => p.map(t => t.id === optimistic.id ? result.todo : t));
+    } else {
+      // Rollback
+      setTodos(p => p.filter(t => t.id !== optimistic.id));
+      alert(`Could not save todo: ${result.error}`);
+    }
+  };
+
+  const handleToggleTodo = async (id) => {
+    setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    setTodoSyncStatus(p => ({ ...p, [id]: 'syncing' }));
+    const result = await toggleTodoAPI(id);
+    setTodoSyncStatus(p => ({ ...p, [id]: result.success ? 'success' : 'error' }));
+    if (result.success) setTodos(p => p.map(t => t.id === id ? result.todo : t));
+    setTimeout(() => setTodoSyncStatus(p => ({ ...p, [id]: null })), 2500);
+  };
+
+  const handleDeleteTodo = async (id) => {
+    setTodos(p => p.filter(t => t.id !== id));
+    await deleteTodoAPI(id);
+  };
+
+  // ── Grocery list — localStorage ───────────────────────────────────────────
   const [groceries, setGroceries]               = useState(() => lsGet('dcc_groceries', DEFAULT_GROCERIES));
   const [checkedGroceries, setCheckedGroceries] = useState(() => lsGet('dcc_grocery_checks', {}));
   const [newGrocery, setNewGrocery]             = useState('');
@@ -260,7 +319,7 @@ export default function DailyCommandCenter() {
   useEffect(() => { lsSet('dcc_groceries', groceries); }, [groceries]);
   useEffect(() => { lsSet('dcc_grocery_checks', checkedGroceries); }, [checkedGroceries]);
 
-  const toggleGrocery = (id) => setCheckedGroceries(p => { const n = { ...p, [id]: !p[id] }; return n; });
+  const toggleGrocery = (id) => setCheckedGroceries(p => ({ ...p, [id]: !p[id] }));
   const deleteGrocery = (id) => setGroceries(p => p.filter(g => g.id !== id));
   const addGrocery = () => {
     if (!newGrocery.trim()) return;
@@ -268,7 +327,7 @@ export default function DailyCommandCenter() {
     setNewGrocery('');
   };
 
-  // ── Live Jira state ───────────────────────────────────────────────────────
+  // ── Live Jira ─────────────────────────────────────────────────────────────
   const [jiraTasks, setJiraTasks]     = useState([]);
   const [jiraLoading, setJiraLoading] = useState(true);
   const [jiraError, setJiraError]     = useState(false);
@@ -279,7 +338,7 @@ export default function DailyCommandCenter() {
       .catch(() => { setJiraLoading(false); setJiraError(true); });
   }, []);
 
-  // ── Live Asana state ──────────────────────────────────────────────────────
+  // ── Live Asana ────────────────────────────────────────────────────────────
   const [asanaTasks, setAsanaTasks]     = useState([]);
   const [asanaLoading, setAsanaLoading] = useState(true);
   const [asanaError, setAsanaError]     = useState(false);
@@ -290,7 +349,6 @@ export default function DailyCommandCenter() {
       .catch(() => { setAsanaLoading(false); setAsanaError(true); });
   }, []);
 
-  // ── Asana toggle — checks/unchecks and syncs to Asana API ────────────────
   const toggleAsana = useCallback(async (gid, name) => {
     const key = gid || name;
     const nowChecked = !checkedAsana[key];
@@ -307,9 +365,9 @@ export default function DailyCommandCenter() {
   const reviewCount    = jiraTasks.filter(t =>
     t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
   ).length;
-  const overdueCount   = asanaTasks.filter(t => t.overdue).length;
-  const dueSoonCount   = asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length;
-  const activeTodos    = todos.filter(t => !t.completed);
+  const overdueCount  = asanaTasks.filter(t => t.overdue).length;
+  const dueSoonCount  = asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length;
+  const activeTodos   = todos.filter(t => !t.completed);
   const completedTodos = todos.filter(t => t.completed);
 
   const filteredJira = jiraTasks.filter(t => {
@@ -326,9 +384,8 @@ export default function DailyCommandCenter() {
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
-  // ── Sync indicator logic ──────────────────────────────────────────────────
-  const isLoading = jiraLoading || asanaLoading;
-  const isError   = jiraError || asanaError;
+  const isLoading     = jiraLoading || asanaLoading || todosLoading;
+  const isError       = jiraError || asanaError;
   const syncDotColor  = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncTextColor = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncBorder    = isLoading ? 'rgba(245,158,11,0.3)' : isError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
@@ -462,9 +519,9 @@ export default function DailyCommandCenter() {
       {/* ── Content ── */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 16px 48px' }}>
 
+        {/* ── BRIEFING ── */}
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px' }}>
@@ -507,22 +564,33 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {activeTodos.length > 0 && (
-              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-                <div style={{ padding: '16px 20px 4px' }}>
-                  <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🏠 Personal To-Do</h2>
-                </div>
-                <div style={{ padding: '0 16px 16px' }}>
-                  {activeTodos.slice(0, 5).map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)}
-                  {activeTodos.length > 5 && (
-                    <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', margin: '8px 0 0' }}>
-                      +{activeTodos.length - 5} more — see To-Do tab
-                    </p>
-                  )}
-                </div>
+            {/* Personal To-Do preview in briefing */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+              <div style={{ padding: '16px 20px 4px' }}>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🏠 Personal To-Do</h2>
               </div>
-            )}
+              <div style={{ padding: '0 16px 16px' }}>
+                {todosLoading ? <LoadingRows message="Loading to-dos…" /> :
+                 todosError === 'kv_missing' ? (
+                   <LoadingRows message="⚠ Vercel KV not set up yet — see setup instructions." color="#f59e0b" />
+                 ) : activeTodos.length === 0 ? (
+                   <LoadingRows message="No personal to-dos — Claude will surface items from Gmail each morning ✓" color="#15803d" />
+                 ) : (
+                   activeTodos.slice(0, 5).map(t => (
+                     <TodoItem key={t.id} item={t}
+                       onToggle={handleToggleTodo}
+                       onDelete={handleDeleteTodo}
+                       syncStatus={todoSyncStatus[t.id]} />
+                   ))
+                 )}
+                {activeTodos.length > 5 && (
+                  <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', margin: '8px 0 0' }}>
+                    +{activeTodos.length - 5} more — see To-Do tab
+                  </p>
+                )}
+              </div>
+            </div>
 
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -553,6 +621,7 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ── JIRA ── */}
         {activeView === 'jira' && (
           <div>
             <div style={{ background: 'rgba(30,41,59,0.4)', borderRadius: '12px', padding: '14px 16px',
@@ -624,6 +693,7 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ── ASANA ── */}
         {activeView === 'asana' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -634,38 +704,27 @@ export default function DailyCommandCenter() {
               </p>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
-              {asanaLoading ? (
-                <LoadingRows message="Fetching your Asana tasks…" />
-              ) : asanaError ? (
-                <LoadingRows message="Could not load Asana tasks. Check ASANA_TOKEN in Vercel." color="#ef4444" />
-              ) : (
+              {asanaLoading ? <LoadingRows message="Fetching your Asana tasks…" /> :
+               asanaError   ? <LoadingRows message="Could not load Asana tasks. Check ASANA_TOKEN in Vercel." color="#ef4444" /> : (
                 <>
-                  <Section title="Overdue" icon="🔴" defaultOpen={true}
-                    count={asanaTasks.filter(t => t.overdue).length}>
+                  <Section title="Overdue" icon="🔴" defaultOpen={true} count={asanaTasks.filter(t => t.overdue).length}>
                     {asanaTasks.filter(t => t.overdue).map(t => (
-                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
-                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]} syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
                     ))}
                   </Section>
-                  <Section title={`Due ${thisMonthLabel}`} icon="📌" defaultOpen={true}
-                    count={asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length}>
+                  <Section title={`Due ${thisMonthLabel}`} icon="📌" defaultOpen={true} count={asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length}>
                     {asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).map(t => (
-                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
-                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]} syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
                     ))}
                   </Section>
-                  <Section title={`Due ${nextMonthLabel}`} icon="🗓️" defaultOpen={false}
-                    count={asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).length}>
+                  <Section title={`Due ${nextMonthLabel}`} icon="🗓️" defaultOpen={false} count={asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).length}>
                     {asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).map(t => (
-                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
-                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]} syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
                     ))}
                   </Section>
-                  <Section title="Long-horizon / No due date" icon="🔭" defaultOpen={false}
-                    count={asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).length}>
+                  <Section title="Long-horizon / No due date" icon="🔭" defaultOpen={false} count={asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).length}>
                     {asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).map(t => (
-                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
-                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]} syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
                     ))}
                   </Section>
                 </>
@@ -674,23 +733,37 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ── TO-DO ── */}
         {activeView === 'todo' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9' }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>🏠 Personal To-Do</h2>
               <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
-                {activeTodos.length} active · {completedTodos.length} completed
+                {todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}
+                {' '}· 📧 items detected from Gmail sync each morning
               </p>
             </div>
+
+            {todosError === 'kv_missing' && (
+              <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb',
+                borderRadius: '10px', border: '1px solid #fde68a' }}>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p>
+                <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
+                  Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.
+                  This is a one-time setup that enables persistent todos synced between Claude and this app.
+                </p>
+              </div>
+            )}
+
             <div style={{ padding: '12px 16px' }}>
               <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                   <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addTodo()}
+                    onKeyDown={e => e.key === 'Enter' && handleAddTodo()}
                     placeholder="Add a personal to-do…"
                     style={{ ...inputStyle, flex: 1 }} />
-                  <button onClick={addTodo}
+                  <button onClick={handleAddTodo}
                     style={{ padding: '9px 16px', borderRadius: '8px', background: '#7c3aed',
                       color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     Add
@@ -708,13 +781,21 @@ export default function DailyCommandCenter() {
                   </select>
                 </div>
               </div>
-              {activeTodos.length === 0 ? (
+
+              {todosLoading ? <LoadingRows message="Loading to-dos…" /> :
+               activeTodos.length === 0 ? (
                 <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                  No personal to-dos yet — add one above ✓
+                  No personal to-dos yet — Claude will detect items from Gmail each morning, or add one above ✓
                 </p>
-              ) : (
-                activeTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)
+               ) : (
+                activeTodos.map(t => (
+                  <TodoItem key={t.id} item={t}
+                    onToggle={handleToggleTodo}
+                    onDelete={handleDeleteTodo}
+                    syncStatus={todoSyncStatus[t.id]} />
+                ))
               )}
+
               {completedTodos.length > 0 && (
                 <div style={{ marginTop: '16px' }}>
                   <button onClick={() => setShowCompleted(!showCompleted)}
@@ -727,7 +808,12 @@ export default function DailyCommandCenter() {
                   </button>
                   {showCompleted && (
                     <div style={{ marginTop: '8px' }}>
-                      {completedTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)}
+                      {completedTodos.map(t => (
+                        <TodoItem key={t.id} item={t}
+                          onToggle={handleToggleTodo}
+                          onDelete={handleDeleteTodo}
+                          syncStatus={todoSyncStatus[t.id]} />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -736,6 +822,7 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
+        {/* ── GROCERY ── */}
         {activeView === 'grocery' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -759,8 +846,7 @@ export default function DailyCommandCenter() {
                 </>
               )}
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                <input type="text" value={newGrocery}
-                  onChange={e => setNewGrocery(e.target.value)}
+                <input type="text" value={newGrocery} onChange={e => setNewGrocery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addGrocery()}
                   placeholder="Add item…"
                   style={{ flex: 1, padding: '9px 12px', borderRadius: '8px',

@@ -6,6 +6,7 @@
 //
 //   /api/jira   — Jira Server/DC (tracker.nci.nih.gov)
 //   /api/asana  — Asana (app.asana.com)
+//   /api/todos  — Personal To-Do store (Vercel KV)
 //
 // Create React App env vars in the browser must use REACT_APP_ prefix.
 // Server-side proxy env vars need no prefix (JIRA_TOKEN, ASANA_TOKEN, etc.).
@@ -64,10 +65,6 @@ export async function addJiraComment(issueKey, comment) {
 
 // ── ASANA ─────────────────────────────────────────────────────────────────────
 
-/**
- * Fetch all incomplete Asana tasks assigned to me, via the /api/asana proxy.
- * Returns a normalised array ready for the app, or [] on error.
- */
 export async function fetchMyAsanaTasks() {
   try {
     const res = await fetch('/api/asana?op=tasks');
@@ -86,9 +83,6 @@ export async function fetchMyAsanaTasks() {
   }
 }
 
-/**
- * Mark an Asana task complete via the /api/asana proxy.
- */
 export async function completeAsanaTask(gid) {
   try {
     const res = await fetch(`/api/asana?op=complete&gid=${gid}`, { method: 'POST' });
@@ -102,9 +96,6 @@ export async function completeAsanaTask(gid) {
   }
 }
 
-/**
- * Reopen (un-complete) an Asana task via the /api/asana proxy.
- */
 export async function reopenAsanaTask(gid) {
   try {
     const res = await fetch(`/api/asana?op=reopen&gid=${gid}`, { method: 'POST' });
@@ -113,6 +104,88 @@ export async function reopenAsanaTask(gid) {
       return { success: false, error: e.error || res.statusText };
     }
     return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ── PERSONAL TODOS ────────────────────────────────────────────────────────────
+// All todo mutations go through /api/todos (Vercel KV-backed).
+// This means Claude can also write todos server-side and they appear here.
+
+export async function fetchTodos() {
+  try {
+    const res = await fetch('/api/todos?op=list');
+    if (!res.ok) {
+      console.error('[Todos] Fetch error:', res.status);
+      return { todos: [], kvMissing: res.status === 503 };
+    }
+    const data = await res.json();
+    return { todos: data.todos || [], kvMissing: false };
+  } catch (e) {
+    console.error('[Todos] Fetch error:', e);
+    return { todos: [], kvMissing: false };
+  }
+}
+
+export async function addTodoAPI({ name, due, priority, source = 'manual', sourceRef = null }) {
+  try {
+    const res = await fetch('/api/todos?op=add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, due, priority, source, sourceRef }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    const data = await res.json();
+    return { success: true, todo: data.todo };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function toggleTodoAPI(id) {
+  try {
+    const res = await fetch(`/api/todos?op=toggle&id=${encodeURIComponent(id)}`, { method: 'POST' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    const data = await res.json();
+    return { success: true, todo: data.todo };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteTodoAPI(id) {
+  try {
+    const res = await fetch(`/api/todos?op=delete&id=${encodeURIComponent(id)}`, { method: 'POST' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateTodoAPI(id, fields) {
+  try {
+    const res = await fetch(`/api/todos?op=update&id=${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    const data = await res.json();
+    return { success: true, todo: data.todo };
   } catch (e) {
     return { success: false, error: e.message };
   }
