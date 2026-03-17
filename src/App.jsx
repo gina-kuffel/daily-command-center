@@ -5,7 +5,8 @@ import { completeAsanaTask, reopenAsanaTask, fetchMyJiraTasks } from './api.js';
 const today    = new Date();
 const todayStr = today.toISOString().slice(0, 10);
 const hour     = today.getHours();
-const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+const greeting      = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+const greetingEmoji = hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙';
 const dateStr  = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
 const endOfThisMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
@@ -345,13 +346,12 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner — matches investment property dashboard style ── */}
+      {/* ── G Unit Banner ── */}
       <div style={{
         width: '100%', position: 'relative', overflow: 'hidden',
         background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4c1d95 55%, #2d1b69 80%, #1e1b4b 100%)',
         borderBottom: '1px solid rgba(139,92,246,0.25)',
       }}>
-        {/* SVG cityscape silhouette overlay */}
         <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '100%', opacity: 0.12 }}
           viewBox="0 0 1200 90" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
           <rect x="0"    y="45" width="38"  height="45" fill="white"/>
@@ -388,7 +388,6 @@ export default function DailyCommandCenter() {
 
         <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px 16px 18px',
           position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* G avatar circle — teal, matching the investment dashboard */}
           <div style={{
             width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -398,8 +397,6 @@ export default function DailyCommandCenter() {
             <span style={{ color: '#fff', fontSize: '24px', fontWeight: 800,
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
-
-          {/* Title block */}
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
               <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '26px',
@@ -416,8 +413,6 @@ export default function DailyCommandCenter() {
               Cancer Research Data Commons
             </p>
           </div>
-
-          {/* Live/Loading badge */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
             background: syncBg, border: `1px solid ${syncBorder}`,
             borderRadius: '8px', padding: '6px 12px', flexShrink: 0 }}>
@@ -433,12 +428,11 @@ export default function DailyCommandCenter() {
         <div style={{ marginBottom: '20px' }}>
           <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px',
             color: '#fff', margin: 0, lineHeight: 1.2 }}>
-            {greeting}, Gina. ☀️
+            {greeting}, Gina. {greetingEmoji}
           </h1>
           <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
         </div>
 
-        {/* Stat pills */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', margin: '0 0 16px' }}>
           {[
             { label: 'Overdue',        value: overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'  },
@@ -457,7 +451,6 @@ export default function DailyCommandCenter() {
           ))}
         </div>
 
-        {/* Nav */}
         <div style={{ display: 'flex', gap: '4px', background: 'rgba(30,41,59,0.5)', borderRadius: '10px',
           padding: '4px', border: '1px solid rgba(71,85,105,0.5)' }}>
           {views.map(v => (
@@ -475,7 +468,6 @@ export default function DailyCommandCenter() {
       {/* ── Content ── */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 16px 48px' }}>
 
-        {/* ── BRIEFING ── */}
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
@@ -547,7 +539,7 @@ export default function DailyCommandCenter() {
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>💡 Gmail & Slack</h2>
               <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
-                <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
+                <p style={{ color: '#166634', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
                 <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>Unread Gmail is mostly promotions and alerts. No Slack @mentions found in public channels.</p>
               </div>
             </div>
@@ -563,7 +555,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── JIRA ── */}
         {activeView === 'jira' && (
           <div>
             <div style={{ background: 'rgba(30,41,59,0.4)', borderRadius: '12px', padding: '14px 16px',
@@ -590,7 +581,6 @@ export default function DailyCommandCenter() {
                   borderColor: jiraPriorityFilter === f ? '#fff' : 'rgba(71,85,105,0.4)' }}>{f}</button>
               ))}
             </div>
-
             {(['All', 'CTDC'].includes(jiraFilter)) && (
               <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
@@ -611,7 +601,6 @@ export default function DailyCommandCenter() {
                 </div>
               </div>
             )}
-
             {(['All', 'ICDC'].includes(jiraFilter)) && (
               <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
@@ -635,7 +624,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── ASANA ── */}
         {activeView === 'asana' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -677,7 +665,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── PERSONAL TO-DO ── */}
         {activeView === 'todo' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -712,7 +699,6 @@ export default function DailyCommandCenter() {
                   </select>
                 </div>
               </div>
-
               {activeTodos.length === 0 ? (
                 <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
                   No personal to-dos yet — add one above ✓
@@ -720,7 +706,6 @@ export default function DailyCommandCenter() {
               ) : (
                 activeTodos.map(t => <TodoItem key={t.id} item={t} onToggle={toggleTodo} onDelete={deleteTodo} />)
               )}
-
               {completedTodos.length > 0 && (
                 <div style={{ marginTop: '16px' }}>
                   <button onClick={() => setShowCompleted(!showCompleted)}
@@ -742,7 +727,6 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── GROCERY ── */}
         {activeView === 'grocery' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
