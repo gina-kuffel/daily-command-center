@@ -68,6 +68,22 @@ const sourceConfig = {
   manual: { emoji: '✏️', label: 'Manual', color: '#64748b' },
 };
 
+// ─── G Badge — matches G Unit Properties icon ─────────────────────────────────
+const GBadge = ({ size = 32 }) => (
+  <div style={{
+    width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
+    background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 0 0 2px rgba(255,255,255,0.2), 0 2px 8px rgba(0,0,0,0.25)',
+  }}>
+    <span style={{
+      color: '#fff', fontWeight: 700,
+      fontSize: size >= 48 ? '22px' : size >= 32 ? '15px' : '11px',
+      fontFamily: "'DM Sans', sans-serif", lineHeight: 1,
+    }}>G</span>
+  </div>
+);
+
 // ─── Components ───────────────────────────────────────────────────────────────
 
 const SyncBadge = ({ status }) => {
@@ -239,6 +255,16 @@ const LoadingRows = ({ message, color = '#f59e0b' }) => (
   <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
 );
 
+// ─── Section card header with G badge ────────────────────────────────────────
+const CardHeader = ({ title }) => (
+  <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <GBadge size={28} />
+    <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
+      {title}
+    </h2>
+  </div>
+);
+
 // ─── Main app ─────────────────────────────────────────────────────────────────
 
 export default function DailyCommandCenter() {
@@ -252,7 +278,7 @@ export default function DailyCommandCenter() {
   // ── Personal To-Do — KV-backed via /api/todos ─────────────────────────────
   const [todos, setTodos]               = useState([]);
   const [todosLoading, setTodosLoading] = useState(true);
-  const [todosError, setTodosError]     = useState(null); // null | 'kv_missing' | 'error'
+  const [todosError, setTodosError]     = useState(null);
   const [newTodo, setNewTodo]           = useState('');
   const [newTodoDue, setNewTodoDue]     = useState('');
   const [newTodoPri, setNewTodoPri]     = useState('');
@@ -288,10 +314,8 @@ export default function DailyCommandCenter() {
       priority: optimistic.priority,
     });
     if (result.success) {
-      // Replace optimistic entry with real one from server
       setTodos(p => p.map(t => t.id === optimistic.id ? result.todo : t));
     } else {
-      // Rollback
       setTodos(p => p.filter(t => t.id !== optimistic.id));
       alert(`Could not save todo: ${result.error}`);
     }
@@ -402,70 +426,55 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner ── */}
+      {/* ── G Unit Banner — matches investment-property-dashboard ── */}
       <div style={{
-        width: '100%', position: 'relative', overflow: 'hidden',
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4c1d95 55%, #2d1b69 80%, #1e1b4b 100%)',
-        borderBottom: '1px solid rgba(139,92,246,0.25)',
+        width: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundImage: 'url(https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=2069&auto=format&fit=crop)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center 60%',
       }}>
-        <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '100%', opacity: 0.12 }}
-          viewBox="0 0 1200 90" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
-          <rect x="0"    y="45" width="38"  height="45" fill="white"/>
-          <rect x="45"   y="20" width="55"  height="70" fill="white"/>
-          <rect x="52"   y="10" width="8"   height="10" fill="white"/>
-          <rect x="108"  y="35" width="30"  height="55" fill="white"/>
-          <rect x="145"  y="15" width="50"  height="75" fill="white"/>
-          <rect x="148"  y="5"  width="6"   height="10" fill="white"/>
-          <rect x="203"  y="40" width="35"  height="50" fill="white"/>
-          <rect x="245"  y="22" width="48"  height="68" fill="white"/>
-          <rect x="300"  y="30" width="42"  height="60" fill="white"/>
-          <rect x="349"  y="8"  width="65"  height="82" fill="white"/>
-          <rect x="356"  y="0"  width="10"  height="8"  fill="white"/>
-          <rect x="421"  y="38" width="32"  height="52" fill="white"/>
-          <rect x="460"  y="18" width="58"  height="72" fill="white"/>
-          <rect x="466"  y="8"  width="8"   height="10" fill="white"/>
-          <rect x="525"  y="42" width="28"  height="48" fill="white"/>
-          <rect x="560"  y="25" width="52"  height="65" fill="white"/>
-          <rect x="619"  y="12" width="70"  height="78" fill="white"/>
-          <rect x="627"  y="2"  width="12"  height="10" fill="white"/>
-          <rect x="696"  y="35" width="38"  height="55" fill="white"/>
-          <rect x="741"  y="20" width="55"  height="70" fill="white"/>
-          <rect x="803"  y="40" width="30"  height="50" fill="white"/>
-          <rect x="840"  y="10" width="60"  height="80" fill="white"/>
-          <rect x="847"  y="0"  width="10"  height="10" fill="white"/>
-          <rect x="907"  y="30" width="45"  height="60" fill="white"/>
-          <rect x="959"  y="22" width="52"  height="68" fill="white"/>
-          <rect x="1018" y="15" width="58"  height="75" fill="white"/>
-          <rect x="1025" y="5"  width="8"   height="10" fill="white"/>
-          <rect x="1083" y="38" width="35"  height="52" fill="white"/>
-          <rect x="1125" y="28" width="50"  height="62" fill="white"/>
-          <rect x="1180" y="45" width="30"  height="45" fill="white"/>
-        </svg>
-        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px 16px 18px',
+        {/* Gradient overlay — same tones as G Unit app */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to right, rgba(15,23,42,0.88) 0%, rgba(88,28,135,0.82) 50%, rgba(49,46,129,0.88) 100%)',
+        }} />
+
+        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px 16px 22px',
           position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+
+          {/* G circle — blue-to-indigo, matches G Unit Properties exactly */}
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
+            background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 0 3px rgba(16,185,129,0.35), 0 4px 16px rgba(0,0,0,0.3)' }}>
-            <span style={{ color: '#fff', fontSize: '24px', fontWeight: 800,
+            boxShadow: '0 0 0 3px rgba(255,255,255,0.18), 0 4px 20px rgba(0,0,0,0.4)',
+          }}>
+            <span style={{ color: '#fff', fontSize: '28px', fontWeight: 700,
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
+
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '26px',
-                color: '#fff', lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+            {/* Title — "G Unit" bold, rest font-light, matching G Unit Properties */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+              <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '28px',
+                color: '#fff', margin: 0, lineHeight: 1.15, fontWeight: 300 }}>
                 G <strong style={{ fontWeight: 700 }}>Unit</strong>
-              </span>
+              </h1>
               <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '22px',
-                color: 'rgba(255,255,255,0.9)', fontWeight: 400, lineHeight: 1.1 }}>
+                color: 'rgba(255,255,255,0.92)', fontWeight: 400, lineHeight: 1.15 }}>
                 Daily Command Center
               </span>
             </div>
-            <p style={{ margin: '4px 0 0', color: 'rgba(196,181,253,0.85)', fontSize: '11px',
+            {/* Subtitle — blue-200 toned, tracking-wide, matching G Unit subtext */}
+            <p style={{ margin: '4px 0 0', color: '#bfdbfe', fontSize: '11px',
               fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Cancer Research Data Commons
             </p>
           </div>
+
+          {/* Sync status pill */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
             background: syncBg, border: `1px solid ${syncBorder}`,
             borderRadius: '8px', padding: '6px 12px', flexShrink: 0 }}>
@@ -522,10 +531,14 @@ export default function DailyCommandCenter() {
         {/* ── BRIEFING ── */}
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '16px 20px 4px' }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🔴 Critical — Act Now</h2>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
+                  🔴 Critical — Act Now
+                </h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
@@ -538,8 +551,11 @@ export default function DailyCommandCenter() {
 
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '16px 20px 4px' }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🔵 Awaiting Review / QA</h2>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
+                  🔵 Awaiting Review / QA
+                </h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
@@ -551,8 +567,11 @@ export default function DailyCommandCenter() {
 
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '16px 20px 4px' }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>📌 Due This Month — Asana</h2>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
+                  📌 Due This Month — Asana
+                </h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {asanaLoading ? <LoadingRows message="Loading from Asana…" /> :
@@ -564,11 +583,13 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Personal To-Do preview in briefing */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '16px 20px 4px' }}>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🏠 Personal To-Do</h2>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
+                  🏠 Personal To-Do
+                </h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {todosLoading ? <LoadingRows message="Loading to-dos…" /> :
@@ -594,7 +615,10 @@ export default function DailyCommandCenter() {
 
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>📅 Calendar</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📅 Calendar</h2>
+              </div>
               <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                 <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>No events found on your connected Gmail calendar today or tomorrow.</p>
                 <p style={{ color: '#94a3b8', fontSize: '11px', margin: '6px 0 0' }}>Your NIH calendar (gina.kuffel@nih.gov) may require separate connection.</p>
@@ -603,7 +627,10 @@ export default function DailyCommandCenter() {
 
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>💡 Gmail & Slack</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>💡 Gmail & Slack</h2>
+              </div>
               <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
                 <p style={{ color: '#166634', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
                 <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>Unread Gmail is mostly promotions and alerts. No Slack @mentions found in public channels.</p>
@@ -653,6 +680,7 @@ export default function DailyCommandCenter() {
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
                   display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <GBadge size={28} />
                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
                   <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>CTDC — Clinical and Translational Data Commons</h2>
                   <span style={{ background: '#f0fdf4', color: '#15803d', borderRadius: '10px', padding: '2px 8px',
@@ -674,6 +702,7 @@ export default function DailyCommandCenter() {
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
                   display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <GBadge size={28} />
                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
                   <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>ICDC — Integrated Canine Data Commons</h2>
                   <span style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: '10px', padding: '2px 8px',
@@ -697,11 +726,14 @@ export default function DailyCommandCenter() {
         {activeView === 'asana' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-            <div style={{ padding: '16px 20px 4px' }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>Asana Tasks</h2>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 12px' }}>
-                {asanaLoading ? 'Loading…' : `${asanaTasks.length} open • ${overdueCount} overdue`} • check off to sync with Asana
-              </p>
+            <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <GBadge size={28} />
+              <div>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>Asana Tasks</h2>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                  {asanaLoading ? 'Loading…' : `${asanaTasks.length} open • ${overdueCount} overdue`} • check off to sync with Asana
+                </p>
+              </div>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
               {asanaLoading ? <LoadingRows message="Fetching your Asana tasks…" /> :
@@ -737,12 +769,16 @@ export default function DailyCommandCenter() {
         {activeView === 'todo' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>🏠 Personal To-Do</h2>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
-                {todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}
-                {' '}· 📧 items detected from Gmail sync each morning
-              </p>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9',
+              display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <GBadge size={28} />
+              <div>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🏠 Personal To-Do</h2>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                  {todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}
+                  {' '}· 📧 items detected from Gmail sync each morning
+                </p>
+              </div>
             </div>
 
             {todosError === 'kv_missing' && (
@@ -751,7 +787,6 @@ export default function DailyCommandCenter() {
                 <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p>
                 <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
                   Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.
-                  This is a one-time setup that enables persistent todos synced between Claude and this app.
                 </p>
               </div>
             )}
@@ -764,7 +799,8 @@ export default function DailyCommandCenter() {
                     placeholder="Add a personal to-do…"
                     style={{ ...inputStyle, flex: 1 }} />
                   <button onClick={handleAddTodo}
-                    style={{ padding: '9px 16px', borderRadius: '8px', background: '#7c3aed',
+                    style={{ padding: '9px 16px', borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
                       color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     Add
                   </button>
@@ -826,11 +862,15 @@ export default function DailyCommandCenter() {
         {activeView === 'grocery' && (
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9' }}>
-              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>🛒 Grocery List</h2>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
-                {groceries.filter(g => !checkedGroceries[g.id]).length} remaining · {groceries.filter(g => checkedGroceries[g.id]).length} in cart
-              </p>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9',
+              display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <GBadge size={28} />
+              <div>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🛒 Grocery List</h2>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                  {groceries.filter(g => !checkedGroceries[g.id]).length} remaining · {groceries.filter(g => checkedGroceries[g.id]).length} in cart
+                </p>
+              </div>
             </div>
             <div style={{ padding: '12px 16px' }}>
               {groceries.filter(g => !checkedGroceries[g.id]).map(g => (
@@ -852,7 +892,8 @@ export default function DailyCommandCenter() {
                   style={{ flex: 1, padding: '9px 12px', borderRadius: '8px',
                     border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit' }} />
                 <button onClick={addGrocery}
-                  style={{ padding: '9px 18px', borderRadius: '8px', background: '#0f172a',
+                  style={{ padding: '9px 18px', borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
                     color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                   Add
                 </button>
