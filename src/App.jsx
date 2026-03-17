@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { completeAsanaTask, reopenAsanaTask, fetchMyJiraTasks } from './api.js';
+import { completeAsanaTask, reopenAsanaTask, fetchMyJiraTasks, fetchMyAsanaTasks } from './api.js';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 const today    = new Date();
@@ -14,47 +14,6 @@ const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).to
 const thisMonthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const nextMonthLabel = new Date(today.getFullYear(), today.getMonth() + 1, 1)
   .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-// ─── Asana GID map ────────────────────────────────────────────────────────────
-const ASANA_GID_MAP = {
-  'Review shared DataCounts slides':                                                    '1212364674855195',
-  '1.2.1.5 NCTN-NCORP TCIA Images ONLY data integration':                              '1211387299086986',
-  'CMB v5':                                                                             '1210890785381008',
-  'CMB v4':                                                                             '1210890746003119',
-  'Review updated Consolidated Gap Analysis':                                           '1213315089912178',
-  'Review updated Appendix A':                                                          '1213315089912182',
-  'Review CIDC Assay Analysis':                                                         '1213315089912180',
-  'Follow-up: CIDC team create a table of values for potential generic treatment node': '1211214277472252',
-  '1.2.1.2 IODH-CIMAC-CIDC data integration':                                          '1211387299086984',
-  'Set up interoperability meeting with DH/Gina/Steph':                                 '1211293338116018',
-  'Discuss downloading CTDC data capabilities (now and future)':                        '1211293338115841',
-  '1.2.1.1 Cancer Moonshot Biobank (CMB) data integration':                             '1211387299086983',
-  'Update DCF workflow for migrating data from CTDC automatically':                     '1208106831570969',
-  'Interactive tutorials via GitHub from CTDC site':                                    '1211293338116088',
-};
-
-// ─── Asana tasks — overdue computed at runtime ────────────────────────────────
-const RAW_ASANA_TASKS = [
-  { name: 'Review shared DataCounts slides',                                                    due: '2025-12-11', product: 'CTDC' },
-  { name: '1.2.1.5 NCTN-NCORP TCIA Images ONLY data integration',                              due: '2026-03-27', product: 'CTDC' },
-  { name: 'CMB v5',                                                                             due: '2026-03-31', product: 'CTDC' },
-  { name: 'CMB v4',                                                                             due: '2026-03-31', product: 'CTDC' },
-  { name: 'Review updated Consolidated Gap Analysis',                                           due: '2026-04-24', product: 'CTDC' },
-  { name: 'Review updated Appendix A',                                                          due: '2026-04-24', product: 'CTDC' },
-  { name: 'Review CIDC Assay Analysis',                                                         due: '2026-04-24', product: 'CTDC' },
-  { name: 'Follow-up: CIDC team create a table of values for potential generic treatment node', due: '2026-05-08', product: 'CTDC' },
-  { name: '1.2.1.2 IODH-CIMAC-CIDC data integration',                                          due: '2027-03-01', product: 'CTDC' },
-  { name: 'Set up interoperability meeting with DH/Gina/Steph',                                 due: null,         product: 'CTDC' },
-  { name: 'Discuss downloading CTDC data capabilities (now and future)',                        due: null,         product: 'CTDC' },
-  { name: '1.2.1.1 Cancer Moonshot Biobank (CMB) data integration',                             due: null,         product: 'CTDC' },
-  { name: 'Update DCF workflow for migrating data from CTDC automatically',                     due: null,         product: 'CTDC' },
-  { name: 'Interactive tutorials via GitHub from CTDC site',                                    due: null,         product: 'CTDC' },
-];
-
-const asanaTasks = RAW_ASANA_TASKS.map(t => ({
-  ...t,
-  overdue: !!t.due && t.due < todayStr,
-}));
 
 const groceryItems = [
   { id: 1, name: 'Eggs' },
@@ -171,7 +130,7 @@ const AsanaRow = ({ task, checked, syncStatus, onToggle }) => (
     background: task.overdue ? '#fff5f5' : '#fafafa',
     border: task.overdue ? '1px solid #fecaca' : '1px solid #f1f5f9',
     opacity: checked ? 0.55 : 1, transition: 'opacity 0.2s' }}>
-    <input type="checkbox" checked={checked} onChange={() => onToggle(task.name)}
+    <input type="checkbox" checked={checked} onChange={() => onToggle(task.gid, task.name)}
       disabled={syncStatus === 'syncing'}
       style={{ marginTop: '2px', cursor: 'pointer', accentColor: '#10b981' }} />
     <ProductDot product={task.product} />
@@ -245,12 +204,16 @@ const TodoItem = ({ item, onToggle, onDelete }) => {
   );
 };
 
+const LoadingRows = ({ message, color = '#f59e0b' }) => (
+  <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
+);
+
 // ─── Main app ─────────────────────────────────────────────────────────────────
 
 export default function DailyCommandCenter() {
   const [activeView, setActiveView]             = useState('briefing');
-  const [checkedAsana, setCheckedAsana]         = useState({});
   const [asyncStatus, setAsyncStatus]           = useState({});
+  const [checkedAsana, setCheckedAsana]         = useState({});
   const [groceries, setGroceries]               = useState(groceryItems);
   const [checkedGroceries, setCheckedGroceries] = useState({});
   const [newGrocery, setNewGrocery]             = useState('');
@@ -284,15 +247,27 @@ export default function DailyCommandCenter() {
       .catch(() => { setJiraLoading(false); setJiraError(true); });
   }, []);
 
-  const toggleAsana = useCallback(async (name) => {
-    const gid = ASANA_GID_MAP[name];
-    const nowChecked = !checkedAsana[name];
-    setCheckedAsana(p => ({ ...p, [name]: nowChecked }));
-    if (!gid) return;
-    setAsyncStatus(p => ({ ...p, [name]: 'syncing' }));
+  // ── Live Asana state ──────────────────────────────────────────────────────
+  const [asanaTasks, setAsanaTasks]     = useState([]);
+  const [asanaLoading, setAsanaLoading] = useState(true);
+  const [asanaError, setAsanaError]     = useState(false);
+
+  useEffect(() => {
+    fetchMyAsanaTasks()
+      .then(tasks => { setAsanaTasks(tasks); setAsanaLoading(false); })
+      .catch(() => { setAsanaLoading(false); setAsanaError(true); });
+  }, []);
+
+  // ── Asana toggle — checks/unchecks and syncs to Asana API ────────────────
+  const toggleAsana = useCallback(async (gid, name) => {
+    const key = gid || name;
+    const nowChecked = !checkedAsana[key];
+    setCheckedAsana(p => ({ ...p, [key]: nowChecked }));
+    if (!gid) return; // no GID = can't sync
+    setAsyncStatus(p => ({ ...p, [key]: 'syncing' }));
     const result = nowChecked ? await completeAsanaTask(gid) : await reopenAsanaTask(gid);
-    setAsyncStatus(p => ({ ...p, [name]: result.success ? 'success' : 'error' }));
-    setTimeout(() => setAsyncStatus(p => ({ ...p, [name]: null })), 2000);
+    setAsyncStatus(p => ({ ...p, [key]: result.success ? 'success' : 'error' }));
+    setTimeout(() => setAsyncStatus(p => ({ ...p, [key]: null })), 2500);
   }, [checkedAsana]);
 
   const toggleGrocery = (id) => setCheckedGroceries(p => ({ ...p, [id]: !p[id] }));
@@ -303,6 +278,7 @@ export default function DailyCommandCenter() {
     setNewGrocery('');
   };
 
+  // ── Derived counts ────────────────────────────────────────────────────────
   const criticalCount  = jiraTasks.filter(t => t.priority === 'Critical').length;
   const reviewCount    = jiraTasks.filter(t =>
     t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
@@ -326,15 +302,14 @@ export default function DailyCommandCenter() {
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
-  const JiraPlaceholder = ({ message, color = '#64748b' }) => (
-    <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
-  );
-
-  const syncDotColor  = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
-  const syncTextColor = jiraLoading ? '#f59e0b' : jiraError ? '#ef4444' : '#34d399';
-  const syncBorder    = jiraLoading ? 'rgba(245,158,11,0.3)' : jiraError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
-  const syncBg        = jiraLoading ? 'rgba(245,158,11,0.1)' : jiraError ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)';
-  const syncLabel     = jiraLoading ? 'Loading…' : jiraError ? 'Jira error' : 'Live';
+  // ── Sync indicator logic ──────────────────────────────────────────────────
+  const isLoading = jiraLoading || asanaLoading;
+  const isError   = jiraError || asanaError;
+  const syncDotColor  = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
+  const syncTextColor = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
+  const syncBorder    = isLoading ? 'rgba(245,158,11,0.3)' : isError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
+  const syncBg        = isLoading ? 'rgba(245,158,11,0.1)' : isError ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)';
+  const syncLabel     = isLoading ? 'Loading…' : isError ? 'Partial error' : 'Live';
 
   const inputStyle = {
     padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
@@ -385,15 +360,12 @@ export default function DailyCommandCenter() {
           <rect x="1125" y="28" width="50"  height="62" fill="white"/>
           <rect x="1180" y="45" width="30"  height="45" fill="white"/>
         </svg>
-
         <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px 16px 18px',
           position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{
-            width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
+          <div style={{ width: '54px', height: '54px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 0 3px rgba(16,185,129,0.35), 0 4px 16px rgba(0,0,0,0.3)',
-          }}>
+            boxShadow: '0 0 0 3px rgba(16,185,129,0.35), 0 4px 16px rgba(0,0,0,0.3)' }}>
             <span style={{ color: '#fff', fontSize: '24px', fontWeight: 800,
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
@@ -423,7 +395,7 @@ export default function DailyCommandCenter() {
         </div>
       </div>
 
-      {/* ── Sub-header: greeting + stat pills + nav ── */}
+      {/* ── Sub-header ── */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 16px' }}>
         <div style={{ marginBottom: '20px' }}>
           <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px',
@@ -435,16 +407,14 @@ export default function DailyCommandCenter() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', margin: '0 0 16px' }}>
           {[
-            { label: 'Overdue',        value: overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'  },
-            { label: 'Due this month', value: dueSoonCount,  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
-            { label: 'Critical Jira',  value: criticalCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
-            { label: 'Needs review',   value: reviewCount,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
+            { label: 'Overdue',        value: asanaLoading ? '…' : overdueCount,  color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)'  },
+            { label: 'Due this month', value: asanaLoading ? '…' : dueSoonCount,  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
+            { label: 'Critical Jira',  value: jiraLoading  ? '…' : criticalCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
+            { label: 'Needs review',   value: jiraLoading  ? '…' : reviewCount,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`,
               borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: s.color, lineHeight: 1 }}>
-                {jiraLoading && s.label !== 'Overdue' && s.label !== 'Due this month' ? '…' : s.value}
-              </div>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
               <div style={{ fontSize: '10px', color: s.color, marginTop: '4px',
                 fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
             </div>
@@ -470,16 +440,18 @@ export default function DailyCommandCenter() {
 
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px' }}>
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🔴 Critical — Act Now</h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
-                {jiraLoading ? <JiraPlaceholder message="Loading from Jira…" color="#f59e0b" /> :
-                 jiraError   ? <JiraPlaceholder message="Could not load Jira tasks. Check VITE_JIRA_TOKEN." color="#ef4444" /> :
-                 jiraTasks.filter(t => t.priority === 'Critical').length === 0 ? <JiraPlaceholder message="No critical issues right now ✓" color="#15803d" /> :
-                 jiraTasks.filter(t => t.priority === 'Critical').map(t => <JiraRow key={t.key} task={t} />)}
+                {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
+                 jiraError   ? <LoadingRows message="Could not load Jira tasks." color="#ef4444" /> :
+                 jiraTasks.filter(t => t.priority === 'Critical').length === 0
+                   ? <LoadingRows message="No critical issues right now ✓" color="#15803d" />
+                   : jiraTasks.filter(t => t.priority === 'Critical').map(t => <JiraRow key={t.key} task={t} />)}
               </div>
             </div>
 
@@ -489,7 +461,7 @@ export default function DailyCommandCenter() {
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>🔵 Awaiting Review / QA</h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
-                {jiraLoading ? <JiraPlaceholder message="Loading from Jira…" color="#f59e0b" /> :
+                {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
                  jiraTasks.filter(t =>
                    t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
                  ).map(t => <JiraRow key={t.key} task={t} />)}
@@ -502,10 +474,12 @@ export default function DailyCommandCenter() {
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 12px' }}>📌 Due This Month — Asana</h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
-                {asanaTasks.filter(t => t.due && t.due <= endOfThisMonth).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
-                    syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
-                ))}
+                {asanaLoading ? <LoadingRows message="Loading from Asana…" /> :
+                 asanaError   ? <LoadingRows message="Could not load Asana tasks." color="#ef4444" /> :
+                 asanaTasks.filter(t => t.due && t.due <= endOfThisMonth).map(t => (
+                   <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
+                     syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                 ))}
               </div>
             </div>
 
@@ -581,7 +555,7 @@ export default function DailyCommandCenter() {
                   borderColor: jiraPriorityFilter === f ? '#fff' : 'rgba(71,85,105,0.4)' }}>{f}</button>
               ))}
             </div>
-            {(['All', 'CTDC'].includes(jiraFilter)) && (
+            {['All', 'CTDC'].includes(jiraFilter) && (
               <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
@@ -594,14 +568,15 @@ export default function DailyCommandCenter() {
                   </span>
                 </div>
                 <div style={{ padding: '12px 16px' }}>
-                  {jiraLoading ? <JiraPlaceholder message="Loading from Jira…" color="#f59e0b" /> :
-                   jiraError   ? <JiraPlaceholder message="Could not load Jira tasks." color="#ef4444" /> :
-                   filteredJira.filter(t => t.product === 'CTDC').length === 0 ? <JiraPlaceholder message="No CTDC tasks match current filters." /> :
-                   filteredJira.filter(t => t.product === 'CTDC').map(t => <JiraRow key={t.key} task={t} />)}
+                  {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
+                   jiraError   ? <LoadingRows message="Could not load Jira tasks." color="#ef4444" /> :
+                   filteredJira.filter(t => t.product === 'CTDC').length === 0
+                     ? <LoadingRows message="No CTDC tasks match current filters." color="#64748b" />
+                     : filteredJira.filter(t => t.product === 'CTDC').map(t => <JiraRow key={t.key} task={t} />)}
                 </div>
               </div>
             )}
-            {(['All', 'ICDC'].includes(jiraFilter)) && (
+            {['All', 'ICDC'].includes(jiraFilter) && (
               <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
                 boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
@@ -614,10 +589,11 @@ export default function DailyCommandCenter() {
                   </span>
                 </div>
                 <div style={{ padding: '12px 16px' }}>
-                  {jiraLoading ? <JiraPlaceholder message="Loading from Jira…" color="#f59e0b" /> :
-                   jiraError   ? <JiraPlaceholder message="Could not load Jira tasks." color="#ef4444" /> :
-                   filteredJira.filter(t => t.product === 'ICDC').length === 0 ? <JiraPlaceholder message="No ICDC tasks match current filters." /> :
-                   filteredJira.filter(t => t.product === 'ICDC').map(t => <JiraRow key={t.key} task={t} />)}
+                  {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
+                   jiraError   ? <LoadingRows message="Could not load Jira tasks." color="#ef4444" /> :
+                   filteredJira.filter(t => t.product === 'ICDC').length === 0
+                     ? <LoadingRows message="No ICDC tasks match current filters." color="#64748b" />
+                     : filteredJira.filter(t => t.product === 'ICDC').map(t => <JiraRow key={t.key} task={t} />)}
                 </div>
               </div>
             )}
@@ -630,37 +606,46 @@ export default function DailyCommandCenter() {
             <div style={{ padding: '16px 20px 4px' }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 4px' }}>Asana Tasks</h2>
               <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 12px' }}>
-                {asanaTasks.length} open • {overdueCount} overdue • check off to sync with Asana
+                {asanaLoading ? 'Loading…' : `${asanaTasks.length} open • ${overdueCount} overdue`} • check off to sync with Asana
               </p>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
-              <Section title="Overdue" icon="🔴" defaultOpen={true} count={asanaTasks.filter(t => t.overdue).length}>
-                {asanaTasks.filter(t => t.overdue).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
-                    syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
-                ))}
-              </Section>
-              <Section title={`Due ${thisMonthLabel}`} icon="📌" defaultOpen={true}
-                count={asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length}>
-                {asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
-                    syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
-                ))}
-              </Section>
-              <Section title={`Due ${nextMonthLabel}`} icon="🗓️" defaultOpen={false}
-                count={asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).length}>
-                {asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
-                    syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
-                ))}
-              </Section>
-              <Section title="Long-horizon / No due date" icon="🔭" defaultOpen={false}
-                count={asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).length}>
-                {asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).map(t => (
-                  <AsanaRow key={t.name} task={t} checked={!!checkedAsana[t.name]}
-                    syncStatus={asyncStatus[t.name]} onToggle={toggleAsana} />
-                ))}
-              </Section>
+              {asanaLoading ? (
+                <LoadingRows message="Fetching your Asana tasks…" />
+              ) : asanaError ? (
+                <LoadingRows message="Could not load Asana tasks. Check ASANA_TOKEN in Vercel." color="#ef4444" />
+              ) : (
+                <>
+                  <Section title="Overdue" icon="🔴" defaultOpen={true}
+                    count={asanaTasks.filter(t => t.overdue).length}>
+                    {asanaTasks.filter(t => t.overdue).map(t => (
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
+                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                    ))}
+                  </Section>
+                  <Section title={`Due ${thisMonthLabel}`} icon="📌" defaultOpen={true}
+                    count={asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length}>
+                    {asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).map(t => (
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
+                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                    ))}
+                  </Section>
+                  <Section title={`Due ${nextMonthLabel}`} icon="🗓️" defaultOpen={false}
+                    count={asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).length}>
+                    {asanaTasks.filter(t => t.due && t.due > endOfThisMonth && t.due <= endOfNextMonth).map(t => (
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
+                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                    ))}
+                  </Section>
+                  <Section title="Long-horizon / No due date" icon="🔭" defaultOpen={false}
+                    count={asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).length}>
+                    {asanaTasks.filter(t => !t.due || t.due > endOfNextMonth).map(t => (
+                      <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
+                        syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana} />
+                    ))}
+                  </Section>
+                </>
+              )}
             </div>
           </div>
         )}

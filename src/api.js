@@ -1,19 +1,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Daily Command Center — API Integration
 //
-// Jira calls go through /api/jira (Vercel serverless proxy) to avoid CORS.
-// The proxy reads JIRA_TOKEN and JIRA_BASE_URL from server-side env vars —
-// those secrets never touch the browser.
+// ALL external API calls go through Vercel serverless proxies so that tokens
+// are never exposed in the browser bundle.
 //
-// Asana calls go directly from the browser — Asana allows cross-origin requests.
+//   /api/jira   — Jira Server/DC (tracker.nci.nih.gov)
+//   /api/asana  — Asana (app.asana.com)
 //
-// Create React App env vars must be prefixed REACT_APP_ to be available
-// in the browser bundle (process.env.REACT_APP_*).
+// Create React App env vars in the browser must use REACT_APP_ prefix.
+// Server-side proxy env vars need no prefix (JIRA_TOKEN, ASANA_TOKEN, etc.).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ASANA_TOKEN = process.env.REACT_APP_ASANA_TOKEN;
+const todayStr = new Date().toISOString().slice(0, 10);
 
-// ── JIRA LIVE FETCH (via Vercel proxy) ───────────────────────────────────────
+// ── JIRA ─────────────────────────────────────────────────────────────────────
 
 export async function fetchMyJiraTasks() {
   const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
@@ -25,15 +25,11 @@ export async function fetchMyJiraTasks() {
 
   try {
     const res = await fetch(`/api/jira?${params.toString()}`);
-
     if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      console.error('[Jira] Proxy error:', res.status, errBody);
+      console.error('[Jira] Proxy error:', res.status, await res.json().catch(() => ({})));
       return [];
     }
-
     const data = await res.json();
-
     return (data.issues || []).map(issue => ({
       key:      issue.key,
       summary:  issue.fields.summary?.trim() || issue.key,
@@ -56,54 +52,6 @@ function projectToProduct(projectKey) {
   return 'CTDC';
 }
 
-// ── ASANA ─────────────────────────────────────────────────────────────────────
-
-export async function completeAsanaTask(taskGid) {
-  if (!ASANA_TOKEN) return { success: false, error: 'No Asana token configured' };
-  try {
-    const res = await fetch(`https://app.asana.com/api/1.0/tasks/${taskGid}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${ASANA_TOKEN}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ data: { completed: true } }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      return { success: false, error: err?.errors?.[0]?.message || res.statusText };
-    }
-    return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function reopenAsanaTask(taskGid) {
-  if (!ASANA_TOKEN) return { success: false, error: 'No Asana token configured' };
-  try {
-    const res = await fetch(`https://app.asana.com/api/1.0/tasks/${taskGid}`, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${ASANA_TOKEN}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ data: { completed: false } }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      return { success: false, error: err?.errors?.[0]?.message || res.statusText };
-    }
-    return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-// ── JIRA MUTATIONS (proxied versions coming if CORS blocks these) ──────────────
-
 export async function transitionJiraIssue(issueKey, targetStatusName) {
   console.warn('[Jira] transitionJiraIssue not yet proxied.');
   return { success: false, error: 'Not yet implemented via proxy.' };
@@ -112,4 +60,60 @@ export async function transitionJiraIssue(issueKey, targetStatusName) {
 export async function addJiraComment(issueKey, comment) {
   console.warn('[Jira] addJiraComment not yet proxied.');
   return { success: false, error: 'Not yet implemented via proxy.' };
+}
+
+// ── ASANA ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all incomplete Asana tasks assigned to me, via the /api/asana proxy.
+ * Returns a normalised array ready for the app, or [] on error.
+ */
+export async function fetchMyAsanaTasks() {
+  try {
+    const res = await fetch('/api/asana?op=tasks');
+    if (!res.ok) {
+      console.error('[Asana] Proxy error:', res.status, await res.json().catch(() => ({})));
+      return [];
+    }
+    const data = await res.json();
+    return (data.tasks || []).map(t => ({
+      ...t,
+      overdue: !!t.due && t.due < todayStr,
+    }));
+  } catch (e) {
+    console.error('[Asana] Fetch error:', e);
+    return [];
+  }
+}
+
+/**
+ * Mark an Asana task complete via the /api/asana proxy.
+ */
+export async function completeAsanaTask(gid) {
+  try {
+    const res = await fetch(`/api/asana?op=complete&gid=${gid}`, { method: 'POST' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Reopen (un-complete) an Asana task via the /api/asana proxy.
+ */
+export async function reopenAsanaTask(gid) {
+  try {
+    const res = await fetch(`/api/asana?op=reopen&gid=${gid}`, { method: 'POST' });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return { success: false, error: e.error || res.statusText };
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
