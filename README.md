@@ -2,7 +2,7 @@
 
 **Personal life and work operating system for a Senior TPM on the Cancer Research Data Commons ecosystem.**
 
-Built with React (Create React App). Tracks Jira issues, Asana tasks, and a grocery list across ICDC and CTDC projects.
+Built with React + Vite. Tracks Jira issues, Asana tasks, and a grocery list across ICDC and CTDC projects — with live Asana API sync.
 
 ---
 
@@ -14,29 +14,74 @@ daily-command-center/
 │   ├── index.html          # HTML shell
 │   └── manifest.json       # PWA manifest
 ├── src/
-│   ├── App.jsx             # Main app component (all logic lives here)
+│   ├── App.jsx             # Main app component — all UI + state logic
+│   ├── api.js              # API integration layer (Asana + Jira REST calls)
 │   ├── index.js            # React entry point
 │   └── index.css           # Global reset styles
-├── .gitignore
-├── package.json
+├── SKILL.md                # Claude operating instructions
 ├── vercel.json             # Vercel deployment config
+├── package.json
 └── README.md
 ```
+
+---
+
+## ⚡ Features
+
+| Feature | Status |
+|---|---|
+| Jira task display (ICDC + CTDC) with priority/status badges | ✅ Live |
+| Jira filter by product and priority | ✅ Live |
+| Asana tasks organized by due date sections | ✅ Live |
+| **Live Asana checkbox sync** — checks complete/reopen tasks in Asana via API | ✅ Live |
+| SyncBadge — inline ⟳ / ✓ / ✗ feedback on every Asana row | ✅ Live |
+| Grocery list with add / check / delete | ✅ Live |
+| Time-aware greeting (morning / afternoon / evening) | ✅ Live |
+| Persist state across sessions (localStorage) | 🔜 Planned |
+| Live Jira ticket pull via REST API | 🔜 Planned |
+| Live Asana task pull (replace hardcoded list) | 🔜 Planned |
+| AI Morning Briefing (Claude API) | 🔜 Planned |
+| Mobile-optimized / PWA | 🔜 Planned |
+
+---
+
+## 🔑 Environment Variables
+
+Create a `.env` file in the project root (never commit this):
+
+```env
+VITE_ASANA_TOKEN=your_asana_personal_access_token
+VITE_JIRA_TOKEN=your_jira_api_token
+VITE_JIRA_BASE_URL=https://your-org.atlassian.net
+```
+
+### Getting your Asana token
+1. Go to [app.asana.com/0/my-apps](https://app.asana.com/0/my-apps)
+2. Click **Create new token** → name it `daily-command-center`
+3. Copy the token — you only see it once
+4. Add it to `.env` locally and to **Vercel → Settings → Environment Variables** for production
+
+### Getting your Jira token
+1. Go to [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Click **Create API token** → name it `daily-command-center`
+3. Add it to `.env` and Vercel env vars
+
+> ⚠️ `VITE_` prefix means these values are baked into the browser bundle at build time. This is fine for a personal tool you keep private — do not share your deployed URL publicly.
 
 ---
 
 ## 🚀 Quick Start — Run Locally on Your Mac
 
 ### Prerequisites
-Make sure you have **Node.js** installed. Check with:
+Make sure you have **Node.js** installed:
 ```bash
 node -v
 ```
-If not installed, download from [nodejs.org](https://nodejs.org) (LTS version recommended).
+If not installed, download from [nodejs.org](https://nodejs.org) (LTS version).
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/daily-command-center.git
+git clone https://github.com/gina-kuffel/daily-command-center.git
 cd daily-command-center
 ```
 
@@ -44,63 +89,53 @@ cd daily-command-center
 ```bash
 npm install
 ```
-> This installs React, react-scripts, and all dependencies into `/node_modules`. Takes ~1-2 min on first run.
 
-### 3. Start the dev server
+### 3. Add your environment variables
+```bash
+cp .env.example .env   # or create .env manually
+# Fill in your VITE_ASANA_TOKEN, VITE_JIRA_TOKEN, VITE_JIRA_BASE_URL
+```
+
+### 4. Start the dev server
 ```bash
 npm start
 ```
-> Opens automatically at **http://localhost:3000** in your browser.  
-> Hot-reloads on every save — edit `src/App.jsx` and see changes instantly.
+Opens at **http://localhost:3000**. Hot-reloads on every save.
 
 ---
 
-## 🌐 Deploy to Vercel (Public URL)
+## 🌐 Deploy to Vercel
 
 Vercel gives you a free public URL that auto-deploys every time you push to `main`.
 
-### Step 1 — Push your repo to GitHub
+### Step 1 — Install Vercel CLI and deploy
 ```bash
-git init
-git add .
-git commit -m "initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_GITHUB_USERNAME/daily-command-center.git
-git push -u origin main
-```
-
-### Step 2 — Deploy via Vercel CLI (fastest)
-```bash
-# Install Vercel CLI globally (one-time)
 npm install -g vercel
-
-# Deploy from the project root
 vercel
-
-# Follow the prompts:
-# - Link to your Vercel account (browser login)
-# - Project name: daily-command-center
-# - Root directory: ./  (just press Enter)
-# - Framework: Create React App (auto-detected)
 ```
+Follow the prompts — framework is auto-detected as Create React App / Vite.
 
-Your app will be live at something like:  
-**`https://daily-command-center-yourname.vercel.app`**
+### Step 2 — Add environment variables in Vercel
+Go to **Vercel Dashboard → your project → Settings → Environment Variables** and add:
+- `VITE_ASANA_TOKEN`
+- `VITE_JIRA_TOKEN`
+- `VITE_JIRA_BASE_URL`
 
-### Step 3 — Enable auto-deploy on push
-Go to [vercel.com](https://vercel.com), open your project → Settings → Git → connect your GitHub repo.  
-Now every `git push` to `main` triggers a new deploy automatically.
+### Step 3 — Redeploy to pick up the new env vars
+Trigger a redeploy from the Vercel dashboard, or push any commit to `main`.
+
+> ⚠️ Vercel bakes `VITE_` env vars into the bundle at **build time**. If you add or change them, you must redeploy for the changes to take effect.
 
 ---
 
 ## 🔄 Typical Development Workflow
 
 ```bash
-# 1. Make changes to src/App.jsx in your editor
+# 1. Edit src/App.jsx or src/api.js
 # 2. See live updates at localhost:3000
 # 3. When ready to publish:
 git add .
-git commit -m "describe what you changed"
+git commit -m "feat: describe what you changed"
 git push
 # Vercel auto-deploys in ~60 seconds ✓
 ```
@@ -124,32 +159,35 @@ git push
 | Layer | Choice |
 |---|---|
 | Framework | React 18 |
-| Scaffold | Create React App |
 | Hosting | Vercel |
 | Fonts | DM Sans + DM Serif Display (Google Fonts) |
 | Styling | Inline styles (no CSS-in-JS library) |
-| State | React useState (local, in-memory) |
+| State | React `useState` + `useCallback` (local, in-memory) |
+| Asana API | REST via `fetch` + personal access token |
+| Jira API | REST via `fetch` + Basic Auth (email:token) |
 
 ---
 
-## 🗺️ Roadmap / Future Iterations
+## 🤖 Claude Integration
 
-- [ ] Persist grocery list and task checks to `localStorage`
-- [ ] Pull live Jira tickets via Jira REST API
-- [ ] Pull live Asana tasks via Asana API
-- [ ] Gmail + Slack action-item surfacing
-- [ ] Google Calendar integration
-- [ ] AI Morning Briefing (Claude API)
-- [ ] Mobile-optimized layout
-- [ ] PWA / installable on iPhone home screen
+This repo is the backend for the **Daily Command Center** Claude project. Claude:
+- Fetches `SKILL.md` at the start of every conversation to load its operating instructions
+- Renders `src/App.jsx` as a live artifact in the Claude side panel
+- Can push code changes directly via GitHub MCP (authenticated as `kuffelgr`)
+- Runs a Morning Sync on every conversation open: Jira, Asana, Gmail, Slack, Google Calendar
 
----
-
-## 🔒 Notes on Privacy
-
-This app currently uses **hardcoded static data** — no credentials, tokens, or personal data are committed to this repo.  
-When API integrations are added, use `.env` files (already in `.gitignore`) and **never commit API keys**.
+To update Claude's behavior, edit `SKILL.md` and commit. Changes take effect next conversation.
 
 ---
 
-*Built for the Cancer Research Data Commons — ICDC & CTDC.*
+## 🔒 Security Notes
+
+- Never commit `.env` files — `.gitignore` covers this
+- All API tokens go in `.env` locally and Vercel env vars for production
+- `VITE_` prefixed vars are browser-visible — keep your deployed URL private
+- Jira Basic Auth uses `email:token` encoded as Base64 — standard Atlassian pattern
+
+---
+
+*Built for the Cancer Research Data Commons — ICDC & CTDC.*  
+*Daily Command Center v1.2 — March 2026*
