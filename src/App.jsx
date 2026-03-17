@@ -15,7 +15,24 @@ const thisMonthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 
 const nextMonthLabel = new Date(today.getFullYear(), today.getMonth() + 1, 1)
   .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-const groceryItems = [
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+// Read a JSON value from localStorage, returning `fallback` if missing or corrupt.
+function lsGet(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw !== null ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// Write a value as JSON to localStorage. Silent on error.
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota exceeded etc */ }
+}
+
+// ─── Default grocery list (only used when localStorage is empty) ──────────────
+const DEFAULT_GROCERIES = [
   { id: 1, name: 'Eggs' },
   { id: 2, name: 'Almond milk' },
   { id: 3, name: 'Spinach' },
@@ -214,18 +231,17 @@ export default function DailyCommandCenter() {
   const [activeView, setActiveView]             = useState('briefing');
   const [asyncStatus, setAsyncStatus]           = useState({});
   const [checkedAsana, setCheckedAsana]         = useState({});
-  const [groceries, setGroceries]               = useState(groceryItems);
-  const [checkedGroceries, setCheckedGroceries] = useState({});
-  const [newGrocery, setNewGrocery]             = useState('');
   const [jiraFilter, setJiraFilter]             = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── Personal To-Do state ─────────────────────────────────────────────────
-  const [todos, setTodos]                 = useState([]);
+  // ── Personal To-Do — persisted to localStorage ───────────────────────────
+  const [todos, setTodos]                 = useState(() => lsGet('dcc_todos', []));
   const [newTodo, setNewTodo]             = useState('');
   const [newTodoDue, setNewTodoDue]       = useState('');
   const [newTodoPri, setNewTodoPri]       = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
+
+  useEffect(() => { lsSet('dcc_todos', todos); }, [todos]);
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
@@ -235,6 +251,22 @@ export default function DailyCommandCenter() {
   };
   const toggleTodo = (id) => setTodos(p => p.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTodo = (id) => setTodos(p => p.filter(t => t.id !== id));
+
+  // ── Grocery list — persisted to localStorage ─────────────────────────────
+  const [groceries, setGroceries]               = useState(() => lsGet('dcc_groceries', DEFAULT_GROCERIES));
+  const [checkedGroceries, setCheckedGroceries] = useState(() => lsGet('dcc_grocery_checks', {}));
+  const [newGrocery, setNewGrocery]             = useState('');
+
+  useEffect(() => { lsSet('dcc_groceries', groceries); }, [groceries]);
+  useEffect(() => { lsSet('dcc_grocery_checks', checkedGroceries); }, [checkedGroceries]);
+
+  const toggleGrocery = (id) => setCheckedGroceries(p => { const n = { ...p, [id]: !p[id] }; return n; });
+  const deleteGrocery = (id) => setGroceries(p => p.filter(g => g.id !== id));
+  const addGrocery = () => {
+    if (!newGrocery.trim()) return;
+    setGroceries(p => [...p, { id: Date.now(), name: newGrocery.trim() }]);
+    setNewGrocery('');
+  };
 
   // ── Live Jira state ───────────────────────────────────────────────────────
   const [jiraTasks, setJiraTasks]     = useState([]);
@@ -263,20 +295,12 @@ export default function DailyCommandCenter() {
     const key = gid || name;
     const nowChecked = !checkedAsana[key];
     setCheckedAsana(p => ({ ...p, [key]: nowChecked }));
-    if (!gid) return; // no GID = can't sync
+    if (!gid) return;
     setAsyncStatus(p => ({ ...p, [key]: 'syncing' }));
     const result = nowChecked ? await completeAsanaTask(gid) : await reopenAsanaTask(gid);
     setAsyncStatus(p => ({ ...p, [key]: result.success ? 'success' : 'error' }));
     setTimeout(() => setAsyncStatus(p => ({ ...p, [key]: null })), 2500);
   }, [checkedAsana]);
-
-  const toggleGrocery = (id) => setCheckedGroceries(p => ({ ...p, [id]: !p[id] }));
-  const deleteGrocery = (id) => setGroceries(p => p.filter(g => g.id !== id));
-  const addGrocery = () => {
-    if (!newGrocery.trim()) return;
-    setGroceries(p => [...p, { id: Date.now(), name: newGrocery.trim() }]);
-    setNewGrocery('');
-  };
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const criticalCount  = jiraTasks.filter(t => t.priority === 'Critical').length;

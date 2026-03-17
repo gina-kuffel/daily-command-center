@@ -80,7 +80,7 @@ When a new conversation opens, immediately do ALL of the following in parallel, 
 
 1. 🔵 **Jira scan** — Find all open issues assigned to Gina. Categorize as ICDC or CTDC based on project key. Flag overdue or blocked items.
 2. 🟢 **Asana scan** — Find all tasks assigned to Gina with upcoming due dates. Categorize as ICDC, CTDC, or Work.
-3. 📧 **Gmail scan** — Scan unread/flagged emails for action language ("please review", "can you", "action required", "your input needed"). Surface as **suggested tasks** — do NOT auto-add, present for confirmation.
+3. 📧 **Gmail scan** — Scan unread/flagged emails for action language ("please review", "can you", "action required", "your input needed"). Also look for life admin signals: renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring. Surface ALL of these as **suggested Personal to-do items** — do NOT auto-add, present for confirmation.
 4. 💬 **Slack scan** — Check for unread DMs and @mentions. Surface action items as suggestions for confirmation.
 5. 📅 **Google Calendar scan** — Check today's and tomorrow's events. Flag meetings that likely require prep or follow-up.
 
@@ -131,6 +131,7 @@ Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noo
 - 🙅 Never auto-add Gmail or Slack items — always confirm first
 - 🛒 Grocery items need no priority or due date — add them directly when asked
 - 🧠 Explain technical concepts like Gina is 5 years old, with full detail
+- 🕐 Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noon–5pm, "Good evening" after 5pm
 
 ---
 
@@ -143,7 +144,7 @@ Greeting adapts to time of day: "Good morning" before noon, "Good afternoon" noo
 - **Serverless proxies:** `api/jira.js`, `api/asana.js`
 - **This skill file:** `SKILL.md`
 
-Claude can push fixes and features directly via `github:create_or_update_file` or `github:push_files`. Always include the file's current `sha` when updating an existing file (fetch it first with `github:get_file_contents`).
+Claude can push fixes and features directly via `github:create_or_update_file` or `github:push_files`. Always fetch the file's current `sha` first with `github:get_file_contents` before updating an existing file.
 
 ### Commit Message Convention
 ```
@@ -169,7 +170,7 @@ daily-command-center/
 │   ├── index.html
 │   └── manifest.json
 ├── src/
-│   ├── App.jsx        # Main React app — all UI + state logic (~45KB)
+│   ├── App.jsx        # Main React app — all UI + state logic
 │   ├── api.js         # API integration layer (browser-side fetch wrappers)
 │   ├── index.js       # React entry point
 │   └── index.css      # Global reset styles
@@ -210,7 +211,7 @@ The proxies exist because:
 | `JIRA_EMAIL` | `api/jira.js` | `kuffelgr@mail.nih.gov` (Basic auth fallback) |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
 
-⚠️ These use NO prefix (not `REACT_APP_`, not `VITE_`) because they are server-side only. Browser-accessible CRA vars would use `REACT_APP_` prefix, but these tokens must never reach the browser.
+⚠️ These use NO prefix (not `REACT_APP_`, not `VITE_`) because they are server-side only. They never reach the browser.
 
 ### `src/api.js` — Browser-side API wrappers
 
@@ -231,79 +232,68 @@ The proxies exist because:
 | `complete` | POST + `?gid=` | Marks a task complete |
 | `reopen` | POST + `?gid=` | Marks a task incomplete |
 
-### Asana GID Map (hardcoded in `src/App.jsx`)
+### localStorage Keys (browser persistence)
 
-Real Asana task GIDs are stored in `ASANA_GID_MAP` in `App.jsx`. When a checkbox is toggled, the app looks up the GID by task name and calls the appropriate API function.
+The following data is persisted to `localStorage` in the deployed app and survives page refreshes:
 
-| Task | GID |
+| Key | What it stores |
 |---|---|
-| Review shared DataCounts slides | `1212364674855195` |
-| 1.2.1.5 NCTN-NCORP TCIA Images ONLY data integration | `1211387299086986` |
-| CMB v5 | `1210890785381008` |
-| CMB v4 | `1210890746003119` |
-| Review updated Consolidated Gap Analysis | `1213315089912178` |
-| Review updated Appendix A | `1213315089912182` |
-| Review CIDC Assay Analysis | `1213315089912180` |
-| Follow-up: CIDC team create a table of values... | `1211214277472252` |
-| 1.2.1.2 IODH-CIMAC-CIDC data integration | `1211387299086984` |
-| Set up interoperability meeting with DH/Gina/Steph | `1211293338116018` |
-| Discuss downloading CTDC data capabilities | `1211293338115841` |
-| 1.2.1.1 Cancer Moonshot Biobank (CMB) data integration | `1211387299086983` |
-| Update DCF workflow for migrating data from CTDC | `1208106831570969` |
-| Interactive tutorials via GitHub from CTDC site | `1211293338116088` |
+| `dcc_todos` | Personal To-Do list (array of `{id, name, due, priority, completed}`) |
+| `dcc_groceries` | Grocery list items (array of `{id, name}`) |
+| `dcc_grocery_checks` | Grocery checked state (object `{id: boolean}`) |
 
-### SyncBadge Component
-Every Asana row has an inline `SyncBadge` that shows live sync state:
-- `⟳ Syncing…` — API call in flight
-- `✓ Synced` — successfully updated in Asana
-- `✗ Error` — API call failed (check `ASANA_TOKEN` in Vercel env vars)
+**Important:** `localStorage` is browser-specific and device-specific. It persists across page refreshes and tab closes on the same browser/device, but does NOT sync across devices. Clearing browser data will wipe it.
 
-Badge auto-clears after 2 seconds.
+### Personal To-Do — How Claude adds items
+
+During the Morning Sync, Claude scans Gmail and Slack for personal action items (life admin: renewals, appointments, bills, registrations, etc.). These are surfaced as suggestions and — when confirmed by Gina — should be stated as items to add. Gina can then add them manually in the app, or Claude can note them here in the briefing for Gina to action.
+
+**Note:** Claude cannot directly write to the app's `localStorage` — that runs in Gina's browser. Claude's role is to surface and confirm items; Gina adds them via the To-Do tab UI in the deployed app.
 
 ---
 
 ## 🗺️ App Roadmap
 
 ### ✅ Shipped
-- [x] Static Jira + Asana task display (hardcoded data)
+- [x] Static Jira + Asana task display (hardcoded data, now replaced by live API)
 - [x] Jira filter by product (ICDC/CTDC) and priority
-- [x] Asana sections by due date (overdue, this month, April–May, long-horizon)
+- [x] Asana sections by due date (overdue, this month, next month, long-horizon)
 - [x] Grocery list with add/check/delete
 - [x] Time-aware greeting (morning/afternoon/evening)
 - [x] `src/api.js` — Asana + Jira REST API integration layer
 - [x] `api/jira.js` — Vercel serverless Jira proxy (CORS bypass)
 - [x] `api/asana.js` — Vercel serverless Asana proxy (complete/reopen/fetch)
-- [x] Real Asana GIDs resolved and wired for all 14 tasks
 - [x] Live Asana checkbox sync (complete/reopen) with SyncBadge feedback
 - [x] `useCallback`-based async `toggleAsana` to prevent stale closure bugs
 - [x] `docs/architecture.svg`
+- [x] G Unit banner with city skyline SVG
+- [x] Personal To-Do tab with priority + due date support
+- [x] **localStorage persistence** for todos, groceries, and grocery check state
 
 ### 🔜 Planned
-- [ ] **Personal tab** — 🏠 tasks (life/appointments/errands) with `localStorage` persistence
-- [ ] Persist grocery list to `localStorage` (currently resets on page refresh)
-- [ ] Pull live Jira tickets dynamically via `/api/jira` (replace hardcoded list)
-- [ ] Pull live Asana tasks dynamically via `/api/asana` (replace hardcoded list + GID map)
+- [ ] Pull live Jira tickets dynamically via `/api/jira` (currently fetched but may need token refresh)
+- [ ] Pull live Asana tasks dynamically via `/api/asana` (replace hardcoded list)
 - [ ] Gmail + Slack action-item surfacing in the app UI
 - [ ] Google Calendar panel in the app
 - [ ] AI Morning Briefing panel inside the app (Claude API)
 - [ ] Mobile-optimized layout
 - [ ] PWA / installable on iPhone home screen
 - [ ] Live Jira status transitions from the app UI
-- [ ] `api/personal.js` — serverless store for personal tasks (if localStorage isn't enough)
+- [ ] Cross-device sync for Personal todos (would require a backend/API)
 
 ---
 
 ## 🔄 How to Update This File
 
 1. Edit `SKILL.md` directly on GitHub, OR
-2. Ask Claude to update it — Claude will push via `github:create_or_update_file`
+2. Ask Claude to update it — Claude will push via `github:push_files` or `github:create_or_update_file`
 3. Changes take effect in the **next** conversation (Claude fetches on open)
 
-Always fetch the current `sha` before updating:
+Always fetch the current `sha` before updating a single file:
 ```
 github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="SKILL.md")
 ```
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.3*
+*Last updated: March 2026 — Daily Command Center v1.4*
