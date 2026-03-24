@@ -63,18 +63,18 @@ const todoPriorityConfig = {
 };
 
 const sourceConfig = {
-  gmail: { emoji: '📧', label: 'Gmail', color: '#ea4335' },
-  slack: { emoji: '💬', label: 'Slack', color: '#4a154b' },
+  gmail:  { emoji: '📧', label: 'Gmail',  color: '#ea4335' },
+  slack:  { emoji: '💬', label: 'Slack',  color: '#4a154b' },
   manual: { emoji: '✏️', label: 'Manual', color: '#64748b' },
 };
 
-// ─── G Badge — matches G Unit Properties icon ─────────────────────────────────
+// ─── G Badge — blue-to-indigo, matches G Unit Properties section badges ───────
 const GBadge = ({ size = 32 }) => (
   <div style={{
     width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-    background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: '0 0 0 2px rgba(255,255,255,0.2), 0 2px 8px rgba(0,0,0,0.25)',
+    boxShadow: '0 0 0 2px rgba(255,255,255,0.25), 0 2px 8px rgba(0,0,0,0.2)',
   }}>
     <span style={{
       color: '#fff', fontWeight: 700,
@@ -255,16 +255,6 @@ const LoadingRows = ({ message, color = '#f59e0b' }) => (
   <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
 );
 
-// ─── Section card header with G badge ────────────────────────────────────────
-const CardHeader = ({ title }) => (
-  <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <GBadge size={28} />
-    <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>
-      {title}
-    </h2>
-  </div>
-);
-
 // ─── Main app ─────────────────────────────────────────────────────────────────
 
 export default function DailyCommandCenter() {
@@ -426,7 +416,7 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner — matches investment-property-dashboard ── */}
+      {/* ── G Unit Banner — city skyline photo, exact G Unit Properties styling ── */}
       <div style={{
         width: '100%',
         position: 'relative',
@@ -435,29 +425,30 @@ export default function DailyCommandCenter() {
         backgroundSize: 'cover',
         backgroundPosition: 'center 60%',
       }}>
-        {/* Gradient overlay — same tones as G Unit app */}
+        {/* Gradient overlay — exact match to G Unit Properties */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(to right, rgba(15,23,42,0.88) 0%, rgba(88,28,135,0.82) 50%, rgba(49,46,129,0.88) 100%)',
+          background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)',
         }} />
 
         <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px 16px 22px',
           position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
 
-          {/* G circle — blue-to-indigo, matches G Unit Properties exactly */}
+          {/* G circle — exact G Unit Properties: blue-500→indigo-600, 4px white/20 border */}
           <div style={{
-            width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
-            background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
+            width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
+            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 0 3px rgba(255,255,255,0.18), 0 4px 20px rgba(0,0,0,0.4)',
+            border: '4px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
           }}>
-            <span style={{ color: '#fff', fontSize: '28px', fontWeight: 700,
+            <span style={{ color: '#fff', fontSize: '32px', fontWeight: 700,
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
 
           <div style={{ flex: 1 }}>
-            {/* Title — "G Unit" bold, rest font-light, matching G Unit Properties */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+            {/* "G Unit" light/bold + "Daily Command Center" in DM Serif — matches G Unit Properties */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
               <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '28px',
                 color: '#fff', margin: 0, lineHeight: 1.15, fontWeight: 300 }}>
                 G <strong style={{ fontWeight: 700 }}>Unit</strong>
@@ -467,8 +458,8 @@ export default function DailyCommandCenter() {
                 Daily Command Center
               </span>
             </div>
-            {/* Subtitle — blue-200 toned, tracking-wide, matching G Unit subtext */}
-            <p style={{ margin: '4px 0 0', color: '#bfdbfe', fontSize: '11px',
+            {/* blue-200 subtitle, tracking-wide — matches G Unit Properties subtext */}
+            <p style={{ margin: '5px 0 0', color: '#bfdbfe', fontSize: '11px',
               fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Cancer Research Data Commons
             </p>
@@ -800,7 +791,7 @@ export default function DailyCommandCenter() {
                     style={{ ...inputStyle, flex: 1 }} />
                   <button onClick={handleAddTodo}
                     style={{ padding: '9px 16px', borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
+                      background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
                       color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     Add
                   </button>
@@ -893,7 +884,7 @@ export default function DailyCommandCenter() {
                     border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit' }} />
                 <button onClick={addGrocery}
                   style={{ padding: '9px 18px', borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #4338ca 100%)',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
                     color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
                   Add
                 </button>
