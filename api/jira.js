@@ -15,7 +15,8 @@
 // REQUIRED VERCEL ENV VARS (server-side only, no REACT_APP_ prefix needed):
 //   JIRA_TOKEN    — Personal Access Token from tracker.nci.nih.gov
 //   JIRA_BASE_URL — e.g. https://tracker.nci.nih.gov
-//   JIRA_EMAIL    — kuffelgr@mail.nih.gov (Basic auth fallback)
+//   JIRA_USER     — Jira username (e.g. kuffelgr) — used to replace currentUser() in JQL
+//   JIRA_EMAIL    — kuffelgr@mail.nih.gov (Basic auth fallback only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
@@ -26,6 +27,9 @@ module.exports = async function handler(req, res) {
   const token   = process.env.JIRA_TOKEN;
   const baseUrl = (process.env.JIRA_BASE_URL || '').replace(/\/$/, '');
   const email   = process.env.JIRA_EMAIL || 'kuffelgr@mail.nih.gov';
+  // JIRA_USER allows us to replace currentUser() with a literal username,
+  // which is required for PAT auth on Jira Server/DC.
+  const jiraUser = process.env.JIRA_USER || 'kuffelgr';
 
   if (!token || !baseUrl) {
     return res.status(500).json({
@@ -33,7 +37,13 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const { jql, fields, maxResults } = req.query;
+  let { jql, fields, maxResults } = req.query;
+
+  // On Jira Server/DC with PAT auth, currentUser() often resolves to nobody.
+  // Replace it with the literal username so JQL always works.
+  if (jql) {
+    jql = jql.replace(/currentUser\(\)/gi, `"${jiraUser}"`);
+  }
 
   const jiraUrl = new URL(`${baseUrl}/rest/api/2/search`);
   if (jql)        jiraUrl.searchParams.set('jql',        jql);
@@ -65,10 +75,12 @@ module.exports = async function handler(req, res) {
       return res.status(jiraRes.status).json({
         error: `Jira returned ${jiraRes.status} ${jiraRes.statusText}`,
         detail: errText.slice(0, 500),
+        jqlSent: jiraUrl.toString(),
       });
     }
 
     const data = await jiraRes.json();
+    // Include the total count in the response for easier debugging
     return res.status(200).json(data);
 
   } catch (e) {
