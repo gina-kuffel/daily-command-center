@@ -6,6 +6,12 @@
 // CORS. This function runs on Vercel's servers (not in the browser), so it
 // can call Jira freely and hand the response back to the React app.
 //
+// AUTH NOTE:
+// tracker.nci.nih.gov accepts PATs via Basic auth (username:token base64),
+// NOT Bearer. Sending Bearer causes Jira to treat the request as anonymous —
+// it returns 200 with no results rather than a 401, which is misleading.
+// We use Basic auth (JIRA_EMAIL:JIRA_TOKEN) as the primary method.
+//
 // This file uses CommonJS (module.exports) — required for Vercel serverless
 // functions in a Create React App project (not Vite/ESM).
 //
@@ -15,8 +21,8 @@
 // REQUIRED VERCEL ENV VARS (server-side only, no REACT_APP_ prefix needed):
 //   JIRA_TOKEN    — Personal Access Token from tracker.nci.nih.gov
 //   JIRA_BASE_URL — e.g. https://tracker.nci.nih.gov
-//   JIRA_USER     — Jira username (e.g. kuffelgr) — used to replace currentUser() in JQL
-//   JIRA_EMAIL    — kuffelgr@mail.nih.gov (Basic auth fallback only)
+//   JIRA_EMAIL    — your NIH Jira username e.g. kuffelgr (used as Basic auth username)
+//   JIRA_USER     — Jira username for JQL (defaults to kuffelgr if not set)
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
@@ -24,12 +30,10 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const token   = process.env.JIRA_TOKEN;
-  const baseUrl = (process.env.JIRA_BASE_URL || '').replace(/\/$/, '');
-  const email   = process.env.JIRA_EMAIL || 'kuffelgr@mail.nih.gov';
-  // JIRA_USER allows us to replace currentUser() with a literal username,
-  // which is required for PAT auth on Jira Server/DC.
-  const jiraUser = process.env.JIRA_USER || 'kuffelgr';
+  const token    = process.env.JIRA_TOKEN;
+  const baseUrl  = (process.env.JIRA_BASE_URL || '').replace(/\/$/, '');
+  const email    = process.env.JIRA_EMAIL || 'kuffelgr';
+  const jiraUser = process.env.JIRA_USER  || 'kuffelgr';
 
   if (!token || !baseUrl) {
     return res.status(500).json({
@@ -39,8 +43,7 @@ module.exports = async function handler(req, res) {
 
   let { jql, fields, maxResults } = req.query;
 
-  // On Jira Server/DC with PAT auth, currentUser() often resolves to nobody.
-  // Replace it with the literal username so JQL always works.
+  // Replace currentUser() with literal username — required for PAT auth on Server/DC
   if (jql) {
     jql = jql.replace(/currentUser\(\)/gi, `"${jiraUser}"`);
   }
@@ -50,7 +53,6 @@ module.exports = async function handler(req, res) {
   if (fields)     jiraUrl.searchParams.set('fields',     fields);
   if (maxResults) jiraUrl.searchParams.set('maxResults', maxResults);
 
-  // Try Bearer first (correct for Jira Server/DC Personal Access Tokens)
   async function attempt(authHeader) {
     return fetch(jiraUrl.toString(), {
       headers: {
@@ -62,12 +64,13 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let jiraRes = await attempt(`Bearer ${token}`);
+    // tracker.nci.nih.gov requires Basic auth (username:PAT) — Bearer passes as anonymous
+    const basic = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
+    let jiraRes = await attempt(basic);
 
-    // If Bearer 401s, retry with Basic auth (covers password-style tokens)
+    // Fallback to Bearer just in case the instance config changes
     if (jiraRes.status === 401) {
-      const basic = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
-      jiraRes = await attempt(basic);
+      jiraRes = await attempt(`Bearer ${token}`);
     }
 
     if (!jiraRes.ok) {
@@ -80,7 +83,6 @@ module.exports = async function handler(req, res) {
     }
 
     const data = await jiraRes.json();
-    // Include the total count in the response for easier debugging
     return res.status(200).json(data);
 
   } catch (e) {
