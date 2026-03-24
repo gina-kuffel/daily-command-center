@@ -17,10 +17,9 @@ const todayStr = new Date().toISOString().slice(0, 10);
 // ── JIRA ─────────────────────────────────────────────────────────────────────
 
 export async function fetchMyJiraTasks() {
-  // NOTE: tracker.nci.nih.gov (Jira Server) 500s on statusCategory != Done.
-  // Use explicit status NOT IN with known closed statuses instead.
   // currentUser() is replaced with the literal username by api/jira.js proxy.
-  const jql = 'assignee = currentUser() AND status NOT IN ("Closed", "Done", "Resolved", "Won\'t Fix", "Duplicate") AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
+  // statusCategory != Done works on this instance (confirmed via live response).
+  const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
   const params = new URLSearchParams({
     jql,
     fields: 'summary,status,priority,issuetype,labels,project',
@@ -113,8 +112,6 @@ export async function reopenAsanaTask(gid) {
 }
 
 // ── PERSONAL TODOS ────────────────────────────────────────────────────────────
-// All todo mutations go through /api/todos (Vercel KV-backed).
-// This means Claude can also write todos server-side and they appear here.
 
 export async function fetchTodos() {
   try {
