@@ -416,7 +416,7 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner — city skyline photo, exact G Unit Properties styling ── */}
+      {/* ── G Unit Banner — exact G Unit Properties layout ── */}
       <div style={{
         width: '100%',
         position: 'relative',
@@ -430,47 +430,54 @@ export default function DailyCommandCenter() {
           background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)',
         }} />
 
-        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px 16px 22px',
-          position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/*
+          Outer row: items-center, gap-3 (12px), px-6 md:px-12, py-8
+          — exact match to G Unit Properties banner layout
+        */}
+        <div style={{
+          maxWidth: '960px', margin: '0 auto',
+          padding: '32px 48px',
+          position: 'relative', zIndex: 1,
+          display: 'flex', alignItems: 'center', gap: '12px',
+        }}>
 
-          {/* G circle — exact G Unit Properties: blue-500→indigo, 4px white/20 border */}
+          {/* G circle — w-16 h-16, blue-500→indigo-600 gradient, border-4 border-white/20, shadow-2xl */}
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '4px solid rgba(255,255,255,0.2)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
           }}>
             <span style={{ color: '#fff', fontSize: '32px', fontWeight: 700,
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
 
-          <div style={{ flex: 1 }}>
-            {/*
-              Title layout — exact match to G Unit Properties:
-              "G Unit" = DM Sans 300 + 700 bold
-              "Daily Command Center" = DM Sans 300 (font-light), same as "Investment Dashboard"
-              All on one baseline line.
-            */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-              <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '28px',
-                color: '#fff', margin: 0, lineHeight: 1.15, fontWeight: 300 }}>
-                G <strong style={{ fontWeight: 700 }}>Unit</strong>
-              </h1>
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '28px',
-                fontWeight: 300,
-                color: 'rgba(255,255,255,0.92)',
-                lineHeight: 1.15,
-              }}>
-                Daily Command Center
-              </span>
-            </div>
-            {/* blue-200 subtitle — matches G Unit Properties subtext */}
-            <p style={{ margin: '5px 0 0', color: '#bfdbfe', fontSize: '11px',
-              fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Cancer Research Data Commons
+          {/*
+            Text block: flex-col — matches G Unit Properties exactly:
+            <h1> "G Unit"  (font-light, "Unit" font-bold, text-3xl md:text-4xl)
+            <p>  "Daily Command Center"  (text-sm, text-blue-200, tracking-wide)
+          */}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <h1 style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '36px',
+              fontWeight: 300,
+              color: '#fff',
+              margin: 0,
+              lineHeight: 1.2,
+            }}>
+              G <strong style={{ fontWeight: 700 }}>Unit</strong>
+            </h1>
+            <p style={{
+              margin: 0,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '14px',
+              fontWeight: 400,
+              color: '#bfdbfe',
+              letterSpacing: '0.05em',
+            }}>
+              Daily Command Center
             </p>
           </div>
 
