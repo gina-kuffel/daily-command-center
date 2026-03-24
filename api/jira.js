@@ -1,5 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Vercel Serverless Function — Jira Proxy
+// tracker.nci.nih.gov — Jira Server/DC
+//
+// AUTH: Jira Server PATs use Bearer token auth.
+// Basic auth (username:token) returns 401 on this instance.
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
@@ -14,46 +18,51 @@ module.exports = async function handler(req, res) {
 
   if (!token || !baseUrl) {
     return res.status(500).json({
-      error: 'Jira proxy not configured — set JIRA_TOKEN and JIRA_BASE_URL in Vercel environment variables.',
+      error: 'Jira proxy not configured — set JIRA_TOKEN and JIRA_BASE_URL in Vercel.',
     });
   }
 
-  const basic = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
+  const bearer = `Bearer ${token}`;
+  const basic  = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
 
-  // ── Debug mode: _debug=whoami hits /rest/api/2/myself to verify auth ───────
-  if (req.query._debug === 'whoami') {
-    try {
-      const r = await fetch(`${baseUrl}/rest/api/2/myself`, {
-        headers: { Authorization: basic, Accept: 'application/json' },
-      });
-      const body = await r.text();
-      return res.status(r.status).json({
-        debug: 'whoami',
-        status: r.status,
-        emailUsed: email,
-        tokenPrefix: token.slice(0, 6) + '…',
-        body: body.slice(0, 1000),
-      });
-    } catch (e) {
-      return res.status(500).json({ debug: 'whoami', error: e.message });
-    }
+  async function jiraFetch(url, authHeader) {
+    return fetch(url, {
+      headers: { Authorization: authHeader, Accept: 'application/json', 'Content-Type': 'application/json' },
+    });
   }
 
-  // ── Debug mode: _debug=serverinfo hits /rest/api/2/serverInfo ─────────────
+  // ── Debug: whoami via Bearer ───────────────────────────────────────────────
+  if (req.query._debug === 'whoami') {
+    const url = `${baseUrl}/rest/api/2/myself`;
+    const r   = await jiraFetch(url, bearer).catch(e => ({ status: 'ERR', text: async () => e.message }));
+    const body = await r.text();
+    return res.status(typeof r.status === 'number' ? r.status : 500).json({
+      debug: 'whoami', authMethod: 'Bearer', status: r.status,
+      tokenPrefix: token.slice(0, 6) + '…',
+      body: body.slice(0, 800),
+    });
+  }
+
+  // ── Debug: whoami via Basic ────────────────────────────────────────────────
+  if (req.query._debug === 'whoami-basic') {
+    const url = `${baseUrl}/rest/api/2/myself`;
+    const r   = await jiraFetch(url, basic).catch(e => ({ status: 'ERR', text: async () => e.message }));
+    const body = await r.text();
+    return res.status(typeof r.status === 'number' ? r.status : 500).json({
+      debug: 'whoami-basic', authMethod: 'Basic', status: r.status,
+      emailUsed: email, tokenPrefix: token.slice(0, 6) + '…',
+      body: body.slice(0, 800),
+    });
+  }
+
+  // ── Debug: serverinfo (no auth required) ──────────────────────────────────
   if (req.query._debug === 'serverinfo') {
-    try {
-      const r = await fetch(`${baseUrl}/rest/api/2/serverInfo`, {
-        headers: { Authorization: basic, Accept: 'application/json' },
-      });
-      const body = await r.text();
-      return res.status(r.status).json({
-        debug: 'serverinfo',
-        status: r.status,
-        body: body.slice(0, 1000),
-      });
-    } catch (e) {
-      return res.status(500).json({ debug: 'serverinfo', error: e.message });
-    }
+    const url = `${baseUrl}/rest/api/2/serverInfo`;
+    const r   = await jiraFetch(url, bearer).catch(e => ({ status: 'ERR', text: async () => e.message }));
+    const body = await r.text();
+    return res.status(typeof r.status === 'number' ? r.status : 500).json({
+      debug: 'serverinfo', status: r.status, body: body.slice(0, 1000),
+    });
   }
 
   // ── Normal search ──────────────────────────────────────────────────────────
@@ -69,14 +78,12 @@ module.exports = async function handler(req, res) {
   if (maxResults) jiraUrl.searchParams.set('maxResults', maxResults);
 
   try {
-    let jiraRes = await fetch(jiraUrl.toString(), {
-      headers: { Authorization: basic, Accept: 'application/json', 'Content-Type': 'application/json' },
-    });
+    // Try Bearer first — correct auth method for Jira Server PATs
+    let jiraRes = await jiraFetch(jiraUrl.toString(), bearer);
 
+    // Fall back to Basic if Bearer 401s
     if (jiraRes.status === 401) {
-      jiraRes = await fetch(jiraUrl.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
-      });
+      jiraRes = await jiraFetch(jiraUrl.toString(), basic);
     }
 
     if (!jiraRes.ok) {
