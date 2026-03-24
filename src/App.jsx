@@ -627,15 +627,29 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
+            {/* ── Gmail — separate card ── */}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <GBadge size={28} />
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>💡 Gmail & Slack</h2>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📧 Gmail</h2>
               </div>
               <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
-                <p style={{ color: '#166634', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
-                <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>Unread Gmail is mostly promotions and alerts. No Slack @mentions found in public channels.</p>
+                <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
+                <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>Unread mail is mostly automated notifications and alerts. No messages with action language detected.</p>
+              </div>
+            </div>
+
+            {/* ── Slack — separate card ── */}
+            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <GBadge size={28} />
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>💬 Slack</h2>
+              </div>
+              <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
+                <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No unread @mentions</p>
+                <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>No direct @mentions found in public channels. Check Claude each morning for surfaced action items.</p>
               </div>
             </div>
 
