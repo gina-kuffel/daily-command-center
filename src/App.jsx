@@ -425,7 +425,6 @@ export default function DailyCommandCenter() {
         backgroundSize: 'cover',
         backgroundPosition: 'center 60%',
       }}>
-        {/* Gradient overlay — exact match to G Unit Properties */}
         <div style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)',
@@ -434,7 +433,7 @@ export default function DailyCommandCenter() {
         <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px 16px 22px',
           position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '16px' }}>
 
-          {/* G circle — exact G Unit Properties: blue-500→indigo-600, 4px white/20 border */}
+          {/* G circle — exact G Unit Properties: blue-500→indigo, 4px white/20 border */}
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
@@ -447,18 +446,28 @@ export default function DailyCommandCenter() {
           </div>
 
           <div style={{ flex: 1 }}>
-            {/* "G Unit" light/bold + "Daily Command Center" in DM Serif — matches G Unit Properties */}
+            {/*
+              Title layout — exact match to G Unit Properties:
+              "G Unit" = DM Sans 300 + 700 bold
+              "Daily Command Center" = DM Sans 300 (font-light), same as "Investment Dashboard"
+              All on one baseline line.
+            */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
               <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '28px',
                 color: '#fff', margin: 0, lineHeight: 1.15, fontWeight: 300 }}>
                 G <strong style={{ fontWeight: 700 }}>Unit</strong>
               </h1>
-              <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: '22px',
-                color: 'rgba(255,255,255,0.92)', fontWeight: 400, lineHeight: 1.15 }}>
+              <span style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '28px',
+                fontWeight: 300,
+                color: 'rgba(255,255,255,0.92)',
+                lineHeight: 1.15,
+              }}>
                 Daily Command Center
               </span>
             </div>
-            {/* blue-200 subtitle, tracking-wide — matches G Unit Properties subtext */}
+            {/* blue-200 subtitle — matches G Unit Properties subtext */}
             <p style={{ margin: '5px 0 0', color: '#bfdbfe', fontSize: '11px',
               fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Cancer Research Data Commons
