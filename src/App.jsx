@@ -430,10 +430,6 @@ export default function DailyCommandCenter() {
           background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)',
         }} />
 
-        {/*
-          Outer row: items-center, gap-3 (12px), px-6 md:px-12, py-8
-          — exact match to G Unit Properties banner layout
-        */}
         <div style={{
           maxWidth: '960px', margin: '0 auto',
           padding: '32px 48px',
@@ -441,7 +437,7 @@ export default function DailyCommandCenter() {
           display: 'flex', alignItems: 'center', gap: '12px',
         }}>
 
-          {/* G circle — w-16 h-16, blue-500→indigo-600 gradient, border-4 border-white/20, shadow-2xl */}
+          {/* G circle logo — the G comes only from here, not the text */}
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
@@ -454,9 +450,10 @@ export default function DailyCommandCenter() {
           </div>
 
           {/*
-            Text block: flex-col — matches G Unit Properties exactly:
-            <h1> "G Unit"  (font-light, "Unit" font-bold, text-3xl md:text-4xl)
-            <p>  "Daily Command Center"  (text-sm, text-blue-200, tracking-wide)
+            Text block — matches G Unit Properties exactly:
+            h1: "<strong>Unit</strong> Properties" → here: "<strong>Unit</strong>"
+            p:  "Investment Dashboard"              → here: "Daily Command Center"
+            The G is in the logo only — not repeated in the text.
           */}
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <h1 style={{
@@ -467,7 +464,7 @@ export default function DailyCommandCenter() {
               margin: 0,
               lineHeight: 1.2,
             }}>
-              G <strong style={{ fontWeight: 700 }}>Unit</strong>
+              <strong style={{ fontWeight: 700 }}>Unit</strong>
             </h1>
             <p style={{
               margin: 0,
