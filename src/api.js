@@ -17,7 +17,10 @@ const todayStr = new Date().toISOString().slice(0, 10);
 // ── JIRA ─────────────────────────────────────────────────────────────────────
 
 export async function fetchMyJiraTasks() {
-  const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
+  // NOTE: tracker.nci.nih.gov (Jira Server) 500s on statusCategory != Done.
+  // Use explicit status NOT IN with known closed statuses instead.
+  // currentUser() is replaced with the literal username by api/jira.js proxy.
+  const jql = 'assignee = currentUser() AND status NOT IN ("Closed", "Done", "Resolved", "Won\'t Fix", "Duplicate") AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
   const params = new URLSearchParams({
     jql,
     fields: 'summary,status,priority,issuetype,labels,project',
