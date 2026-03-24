@@ -234,12 +234,38 @@ Upstash Redis updated — change persists across all sessions and devices
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `JIRA_TOKEN` | `api/jira.js` | NCI Jira Personal Access Token |
-| `JIRA_BASE_URL` | `api/jira.js` | e.g. `https://tracker.nci.nih.gov` |
-| `JIRA_EMAIL` | `api/jira.js` | `kuffelgr@mail.nih.gov` |
+| `JIRA_TOKEN` | `api/jira.js` | NCI Jira Personal Access Token — **must match `JIRA_PERSONAL_TOKEN` in `claude_desktop_config.json` exactly** |
+| `JIRA_BASE_URL` | `api/jira.js` | `https://tracker.nci.nih.gov` |
+| `JIRA_EMAIL` | `api/jira.js` | Jira username only — `kuffelgr` (NOT the full email address) |
+| `JIRA_USER` | `api/jira.js` | `kuffelgr` — substituted for `currentUser()` in JQL |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
 | `UPSTASH_REDIS_REST_URL` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 | `UPSTASH_REDIS_REST_TOKEN` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
+
+### 🔑 Jira Auth — Confirmed Working (March 2026)
+
+**tracker.nci.nih.gov uses Bearer token auth for PATs — NOT Basic auth.**
+
+Key learnings from debugging:
+- ✅ `Authorization: Bearer <token>` — works, authenticates as `kuffelgr`
+- ❌ `Authorization: Basic <base64(username:token)>` — returns 401
+- ❌ Bearer with wrong/old token — returns 200 but treats request as anonymous (no assignee field access)
+- ⚠️ `JIRA_EMAIL` must be username only (`kuffelgr`), NOT full email (`kuffelgr@mail.nih.gov`) — full email causes 500
+- ⚠️ `JIRA_TOKEN` in Vercel must exactly match `JIRA_PERSONAL_TOKEN` in `claude_desktop_config.json`
+- ✅ `statusCategory != Done` JQL works correctly once properly authenticated
+- ✅ `currentUser()` is replaced by the proxy with `"kuffelgr"` for reliable JQL resolution
+
+**Debug URLs** (use these if Jira stops working):
+```
+# Test Bearer auth — should return 200 with your Jira profile
+https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami
+
+# Test Basic auth
+https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami-basic
+
+# Test raw search
+https://daily-command-center-kappa.vercel.app/api/jira?jql=assignee%3D%22kuffelgr%22&maxResults=3&fields=summary,status
+```
 
 ### `/api/todos` operations
 
@@ -293,14 +319,14 @@ Upstash Redis is connected and live. Setup was completed March 2026.
 ## 🗺️ App Roadmap
 
 ### ✅ Shipped
-- [x] Live Jira fetch via `/api/jira` Vercel proxy
+- [x] Live Jira fetch via `/api/jira` Vercel proxy ✅ (confirmed working March 2026)
 - [x] Live Asana fetch + checkbox sync via `/api/asana`
 - [x] Grocery list (localStorage, persists across refreshes)
 - [x] Time-aware greeting (morning/afternoon/evening)
 - [x] G Unit banner with city skyline SVG
 - [x] Personal To-Do tab with priority + due date
-- [x] **`/api/todos` — Upstash Redis-backed persistent todo store** ✅
-- [x] **Upstash Redis connected to Vercel** ✅
+- [x] `/api/todos` — Upstash Redis-backed persistent todo store ✅
+- [x] Upstash Redis connected to Vercel ✅
 - [x] Todo source tagging (Gmail 📧 / Slack 💬 / Manual ✏️)
 - [x] Optimistic UI updates with server reconciliation
 - [x] SyncBadge on todo toggle
@@ -324,4 +350,4 @@ Upstash Redis is connected and live. Setup was completed March 2026.
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.8*
+*Last updated: March 2026 — Daily Command Center v1.9*
