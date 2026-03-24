@@ -430,13 +430,25 @@ export default function DailyCommandCenter() {
           background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)',
         }} />
 
+        {/* Sync pill — top right */}
+        <div style={{
+          position: 'absolute', top: '16px', right: '48px', zIndex: 2,
+          display: 'inline-flex', alignItems: 'center', gap: '6px',
+          background: syncBg, border: `1px solid ${syncBorder}`,
+          borderRadius: '8px', padding: '6px 12px',
+        }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%',
+            background: syncDotColor, display: 'inline-block' }} />
+          <span style={{ color: syncTextColor, fontSize: '11px', fontWeight: 700 }}>{syncLabel}</span>
+        </div>
+
+        {/* Title block — bottom-left aligned, matches G Unit Properties */}
         <div style={{
           maxWidth: '960px', margin: '0 auto',
-          padding: '32px 48px',
+          padding: '48px 48px 28px',
           position: 'relative', zIndex: 1,
-          display: 'flex', alignItems: 'center', gap: '12px',
+          display: 'flex', alignItems: 'flex-end', gap: '16px',
         }}>
-
           {/* G circle logo */}
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
@@ -449,12 +461,8 @@ export default function DailyCommandCenter() {
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
 
-          {/*
-            Exact G Unit Properties pattern:
-            h1: "<strong>Unit</strong> Actions"  ← "Unit" bold, "Actions" font-light
-            p:  "Daily Command Center"
-          */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {/* Title — bottom-aligned text block */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             <h1 style={{
               fontFamily: "'DM Sans', sans-serif",
               fontSize: '36px',
@@ -475,15 +483,6 @@ export default function DailyCommandCenter() {
             }}>
               Daily Command Center
             </p>
-          </div>
-
-          {/* Sync status pill */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: syncBg, border: `1px solid ${syncBorder}`,
-            borderRadius: '8px', padding: '6px 12px', flexShrink: 0 }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%',
-              background: syncDotColor, display: 'inline-block' }} />
-            <span style={{ color: syncTextColor, fontSize: '11px', fontWeight: 700 }}>{syncLabel}</span>
           </div>
         </div>
       </div>
