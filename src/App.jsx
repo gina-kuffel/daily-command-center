@@ -416,7 +416,7 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner — exact G Unit Properties layout ── */}
+      {/* ── G Unit Banner ── */}
       <div style={{
         width: '100%',
         position: 'relative',
@@ -437,7 +437,7 @@ export default function DailyCommandCenter() {
           display: 'flex', alignItems: 'center', gap: '12px',
         }}>
 
-          {/* G circle logo — the G comes only from here, not the text */}
+          {/* G circle logo */}
           <div style={{
             width: '64px', height: '64px', borderRadius: '50%', flexShrink: 0,
             background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
@@ -450,10 +450,9 @@ export default function DailyCommandCenter() {
           </div>
 
           {/*
-            Text block — matches G Unit Properties exactly:
-            h1: "<strong>Unit</strong> Properties" → here: "<strong>Unit</strong>"
-            p:  "Investment Dashboard"              → here: "Daily Command Center"
-            The G is in the logo only — not repeated in the text.
+            Exact G Unit Properties pattern:
+            h1: "<strong>Unit</strong> Actions"  ← "Unit" bold, "Actions" font-light
+            p:  "Daily Command Center"
           */}
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <h1 style={{
@@ -464,7 +463,7 @@ export default function DailyCommandCenter() {
               margin: 0,
               lineHeight: 1.2,
             }}>
-              <strong style={{ fontWeight: 700 }}>Unit</strong>
+              <strong style={{ fontWeight: 700 }}>Unit</strong> Actions
             </h1>
             <p style={{
               margin: 0,
