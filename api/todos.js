@@ -20,6 +20,7 @@
 //   POST ?op=toggle&id=<id>    — toggle completed state
 //   POST ?op=delete&id=<id>    — delete a todo
 //   POST ?op=update&id=<id>    — update fields (body: { name?, due?, priority?, completed? })
+//   POST ?op=seed_from_gmail   — auto-seed actioned gmail emails as todos (deduped by gmail message id)
 //
 // SECURITY:
 // Unauthenticated — this is a personal tool. Don't share the Vercel URL publicly.
@@ -109,6 +110,52 @@ module.exports = async function handler(req, res) {
       todos.push(newTodo);
       await kvSet(todos);
       return res.status(201).json({ todo: newTodo });
+    }
+
+    // ── POST seed_from_gmail ──────────────────────────────────────────────────
+    // Receives an array of actioned Gmail emails and writes any that don't
+    // already exist in the to-do list (deduped by gmail message id in sourceRef).
+    // Returns { added: number, skipped: number, todos: Todo[] }
+    if (op === 'seed_from_gmail') {
+      const emails = Array.isArray(body.emails) ? body.emails : [];
+      if (emails.length === 0) {
+        return res.status(200).json({ added: 0, skipped: 0, todos });
+      }
+
+      // Build a set of gmail message IDs already stored
+      const existingGmailIds = new Set(
+        todos
+          .filter(t => t.source === 'gmail' && t.sourceRef)
+          .map(t => t.sourceRef)
+      );
+
+      const toAdd = emails.filter(e => !existingGmailIds.has(e.id));
+      let added = 0;
+
+      for (const email of toAdd) {
+        const newTodo = {
+          id:        `todo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name:      `📧 ${email.subject}`.slice(0, 120),
+          due:       null,
+          priority:  null,
+          source:    'gmail',
+          sourceRef: email.id,  // gmail message id — used for dedup
+          completed: false,
+          createdAt: new Date().toISOString(),
+        };
+        todos.push(newTodo);
+        added++;
+        // Small delay to ensure unique timestamps in IDs
+        await new Promise(r => setTimeout(r, 2));
+      }
+
+      if (added > 0) await kvSet(todos);
+
+      return res.status(200).json({
+        added,
+        skipped: emails.length - added,
+        todos,
+      });
     }
 
     // ── POST toggle ───────────────────────────────────────────────────────────

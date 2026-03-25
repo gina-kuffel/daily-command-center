@@ -38,7 +38,6 @@ const DEFAULT_GROCERIES = [
 ];
 
 // ─── Work To-Do API helpers ────────────────────────────────────────────────────
-// Uses the same ?op= query-param convention as api/todos.js + api/work-todos.js
 async function fetchWorkTodos() {
   try {
     const r = await fetch('/api/work-todos?op=list');
@@ -71,6 +70,22 @@ async function deleteWorkTodoAPI(id) {
     await fetch(`/api/work-todos?op=delete&id=${encodeURIComponent(id)}`, { method: 'POST' });
     return { success: true };
   } catch { return { success: false }; }
+}
+
+// ─── Gmail → Personal To-Do seed helper ──────────────────────────────────────
+// Sends actioned emails to the todos API for deduped auto-seeding.
+// Returns { added, skipped } so the caller can decide whether to reload todos.
+async function seedTodosFromGmail(actionedEmails) {
+  if (!actionedEmails || actionedEmails.length === 0) return { added: 0, skipped: 0 };
+  try {
+    const r = await fetch('/api/todos?op=seed_from_gmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails: actionedEmails }),
+    });
+    if (!r.ok) return { added: 0, skipped: 0 };
+    return r.json();
+  } catch { return { added: 0, skipped: 0 }; }
 }
 
 // ─── Style configs ────────────────────────────────────────────────────────────
@@ -121,8 +136,6 @@ const GBadge = ({ size = 32 }) => (
 );
 
 // ─── AddTodoInline ─────────────────────────────────────────────────────────────
-// label: 'Personal To-Do' | 'Work To-Do'
-// accentColor: css color for the save button gradient start
 const AddTodoInline = ({ defaultName, label = 'Personal To-Do', accentColor = '#3b82f6', onSave, onCancel }) => {
   const [name, setName]         = useState(defaultName);
   const [due, setDue]           = useState('');
@@ -523,7 +536,7 @@ export default function DailyCommandCenter() {
   const [jiraFilter, setJiraFilter]         = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── Inline form state — personal (Gmail/Cal) & work (Jira/Asana/Slack) ────
+  // ── Inline form state ─────────────────────────────────────────────────────
   const [addingTodoFor, setAddingTodoFor]           = useState(null);
   const [addingWorkTodoFor, setAddingWorkTodoFor]   = useState(null);
   const [dismissedGmailIds, setDismissedGmailIds]   = useState(new Set());
@@ -688,9 +701,29 @@ export default function DailyCommandCenter() {
   const [gmailData, setGmailData]       = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
   const [gmailLoading, setGmailLoading] = useState(true);
   const [gmailError, setGmailError]     = useState(false);
+
+  // ── Auto-seed Personal To-Do from Gmail actioned emails ───────────────────
+  // Runs once when Gmail finishes loading. Sends all isActioned emails to the
+  // seed_from_gmail endpoint which dedupes by Gmail message ID (sourceRef).
+  // If any new todos were written, reloads the todo list.
   useEffect(() => {
     fetchMyGmailActionItems()
-      .then(data => { setGmailData(data); setGmailError(data.error); setGmailLoading(false); })
+      .then(async data => {
+        setGmailData(data);
+        setGmailError(data.error);
+        setGmailLoading(false);
+        // Seed personal to-dos from actioned emails (deduped — safe to call every session)
+        const actioned = (data.emails || []).filter(e => e.isActioned);
+        if (actioned.length > 0) {
+          const { added } = await seedTodosFromGmail(actioned);
+          // Only reload todos if something new was actually written
+          if (added > 0) {
+            const { todos: fresh, kvMissing } = await fetchTodos();
+            setTodos(fresh);
+            setTodosError(kvMissing ? 'kv_missing' : null);
+          }
+        }
+      })
       .catch(() => { setGmailLoading(false); setGmailError(true); });
   }, []);
 
@@ -722,7 +755,6 @@ export default function DailyCommandCenter() {
   });
 
   const visibleGmailEmails   = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
-  // Derive live counts from what's actually visible — updates instantly on dismiss/add-to-do
   const visibleActionedCount = visibleGmailEmails.filter(e => e.isActioned).length;
   const visibleCalToday    = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
   const visibleCalTomorrow = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
@@ -1318,7 +1350,7 @@ export default function DailyCommandCenter() {
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🏠 Personal To-Do</h2>
                 <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
                   {todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}
-                  {' '}· 📧 items detected from Gmail sync each morning
+                  {' '}· 📧 flagged emails auto-added each session
                 </p>
               </div>
             </div>
