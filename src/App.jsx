@@ -89,14 +89,9 @@ const GBadge = ({ size = 32 }) => (
 );
 
 // ─── AddTodoInline ─────────────────────────────────────────────────────────────
-// Inline confirm form that appears under a Gmail or Calendar row.
-// Props:
-//   defaultName  – pre-filled task name string
-//   onSave(name, due, priority) – called when user confirms
-//   onCancel()   – called when user dismisses without saving
 const AddTodoInline = ({ defaultName, onSave, onCancel }) => {
-  const [name, setName]       = useState(defaultName);
-  const [due, setDue]         = useState('');
+  const [name, setName]         = useState(defaultName);
+  const [due, setDue]           = useState('');
   const [priority, setPriority] = useState('');
 
   const inputBase = {
@@ -105,32 +100,18 @@ const AddTodoInline = ({ defaultName, onSave, onCancel }) => {
   };
 
   return (
-    <div style={{
-      margin: '6px 0 4px 0', padding: '10px 12px', borderRadius: '8px',
-      background: '#f0f9ff', border: '1px solid #bae6fd',
-    }}>
-      <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        ➕ Add to Personal To-Do
-      </p>
-      <input
-        type="text"
-        value={name}
-        onChange={e => setName(e.target.value)}
+    <div style={{ margin: '6px 0 4px 0', padding: '10px 12px', borderRadius: '8px',
+      background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+      <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, color: '#0369a1',
+        textTransform: 'uppercase', letterSpacing: '0.05em' }}>➕ Add to Personal To-Do</p>
+      <input type="text" value={name} onChange={e => setName(e.target.value)}
         style={{ ...inputBase, width: '100%', boxSizing: 'border-box', marginBottom: '6px' }}
-        autoFocus
-      />
+        autoFocus />
       <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-        <input
-          type="date"
-          value={due}
-          onChange={e => setDue(e.target.value)}
-          style={{ ...inputBase, flex: 1, color: due ? '#334155' : '#94a3b8' }}
-        />
-        <select
-          value={priority}
-          onChange={e => setPriority(e.target.value)}
-          style={{ ...inputBase, flex: 1, color: priority ? '#334155' : '#94a3b8' }}
-        >
+        <input type="date" value={due} onChange={e => setDue(e.target.value)}
+          style={{ ...inputBase, flex: 1, color: due ? '#334155' : '#94a3b8' }} />
+        <select value={priority} onChange={e => setPriority(e.target.value)}
+          style={{ ...inputBase, flex: 1, color: priority ? '#334155' : '#94a3b8' }}>
           <option value="">Priority (optional)</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -138,25 +119,17 @@ const AddTodoInline = ({ defaultName, onSave, onCancel }) => {
         </select>
       </div>
       <div style={{ display: 'flex', gap: '6px' }}>
-        <button
-          onClick={() => onSave(name.trim(), due || null, priority || null)}
+        <button onClick={() => onSave(name.trim(), due || null, priority || null)}
           disabled={!name.trim()}
-          style={{
-            padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700,
+          style={{ padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700,
             background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
             color: '#fff', border: 'none', cursor: name.trim() ? 'pointer' : 'not-allowed',
-            opacity: name.trim() ? 1 : 0.5,
-          }}
-        >
+            opacity: name.trim() ? 1 : 0.5 }}>
           Save to To-Do
         </button>
-        <button
-          onClick={onCancel}
-          style={{
-            padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-            background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', cursor: 'pointer',
-          }}
-        >
+        <button onClick={onCancel}
+          style={{ padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+            background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
           Cancel
         </button>
       </div>
@@ -298,9 +271,9 @@ const SlackMentionRow = ({ mention }) => {
 };
 
 // ─── GmailRow ─────────────────────────────────────────────────────────────────
-// addingTodoFor / onOpenTodo / onSaveTodo / onCancelTodo wired in from parent
-const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }) => {
-  const rowId = `gmail_${email.id}`;
+// onDismiss: () => void  — immediately removes this email from the card
+const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo, onDismiss }) => {
+  const rowId  = `gmail_${email.id}`;
   const isOpen = addingTodoFor === rowId;
   return (
     <div style={{
@@ -312,11 +285,9 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '11px', fontWeight: 700, color: '#ea4335' }}>{email.from}</span>
         {email.isActioned && (
-          <span style={{
-            fontSize: '10px', fontWeight: 700, color: '#92400e',
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#92400e',
             background: '#fef3c7', border: '1px solid #fde68a',
-            borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase',
-          }}>
+            borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase' }}>
             ⚡ {email.flagReason}
           </span>
         )}
@@ -327,7 +298,7 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }
       <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
         {email.snippet.length > 160 ? email.snippet.slice(0, 160) + '…' : email.snippet}
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
         {email.link && (
           <a href={email.link} target="_blank" rel="noreferrer"
             style={{ fontSize: '11px', color: '#ea4335', textDecoration: 'none' }}>
@@ -335,16 +306,23 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }
           </a>
         )}
         {!isOpen && (
-          <button
-            onClick={() => onOpenTodo(rowId)}
-            style={{
-              fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
-              border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px',
-              cursor: 'pointer', marginLeft: 'auto',
-            }}
-          >
-            ➕ To-Do
-          </button>
+          <>
+            <button
+              onClick={() => onOpenTodo(rowId)}
+              style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
+                border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px',
+                cursor: 'pointer', marginLeft: 'auto' }}>
+              ➕ To-Do
+            </button>
+            <button
+              onClick={onDismiss}
+              title="Dismiss — not relevant"
+              style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', background: 'transparent',
+                border: '1px solid #e2e8f0', borderRadius: '5px', padding: '2px 7px',
+                cursor: 'pointer', lineHeight: 1 }}>
+              ×
+            </button>
+          </>
         )}
       </div>
       {isOpen && (
@@ -360,7 +338,7 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }
 
 // ─── CalendarEventRow ─────────────────────────────────────────────────────────
 const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }) => {
-  const rowId = `cal_${event.id}`;
+  const rowId  = `cal_${event.id}`;
   const isOpen = addingTodoFor === rowId;
   return (
     <div style={{
@@ -399,14 +377,10 @@ const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCanc
           </a>
         )}
         {!isOpen && (
-          <button
-            onClick={() => onOpenTodo(rowId)}
-            style={{
-              fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
+          <button onClick={() => onOpenTodo(rowId)}
+            style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
               border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px',
-              cursor: 'pointer', marginLeft: 'auto',
-            }}
-          >
+              cursor: 'pointer', marginLeft: 'auto' }}>
             ➕ To-Do
           </button>
         )}
@@ -496,41 +470,31 @@ export default function DailyCommandCenter() {
   const [jiraFilter, setJiraFilter]         = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── "Add to To-Do" inline form state ─────────────────────────────────────
-  // addingTodoFor: string ID of the row that has the inline form open, or null
-  // dismissedGmailIds / dismissedCalendarIds: items removed after "Save to To-Do"
+  // ── Gmail / Calendar dismiss & to-do inline form state ────────────────────
   const [addingTodoFor, setAddingTodoFor]         = useState(null);
   const [dismissedGmailIds, setDismissedGmailIds] = useState(new Set());
   const [dismissedCalIds, setDismissedCalIds]     = useState(new Set());
 
-  const handleOpenTodo  = (rowId) => setAddingTodoFor(rowId);
-  const handleCancelTodo = ()     => setAddingTodoFor(null);
+  const handleOpenTodo   = (rowId) => setAddingTodoFor(rowId);
+  const handleCancelTodo = ()      => setAddingTodoFor(null);
+
+  // Dismiss a Gmail row without adding a to-do
+  const handleDismissGmail = (emailId) =>
+    setDismissedGmailIds(prev => new Set([...prev, emailId]));
 
   const handleSaveTodoFromCard = async (rowId, name, due, priority) => {
     if (!name) return;
-    // Determine source and dismiss
     const isGmail = rowId.startsWith('gmail_');
     const isCal   = rowId.startsWith('cal_');
     const source  = isGmail ? 'gmail' : 'manual';
 
-    // Optimistic UI: close form immediately, dismiss the row
     setAddingTodoFor(null);
-    if (isGmail) {
-      const emailId = rowId.replace('gmail_', '');
-      setDismissedGmailIds(prev => new Set([...prev, emailId]));
-    }
-    if (isCal) {
-      const calId = rowId.replace('cal_', '');
-      setDismissedCalIds(prev => new Set([...prev, calId]));
-    }
+    if (isGmail) setDismissedGmailIds(prev => new Set([...prev, rowId.replace('gmail_', '')]));
+    if (isCal)   setDismissedCalIds(prev => new Set([...prev, rowId.replace('cal_', '')]));
 
-    // Save to Redis via API
     const optimistic = {
       id: `optimistic_${Date.now()}`,
-      name,
-      due,
-      priority,
-      source,
+      name, due, priority, source,
       completed: false,
       createdAt: new Date().toISOString(),
     };
@@ -634,7 +598,7 @@ export default function DailyCommandCenter() {
     fetchMyAsanaTasks()
       .then(tasks => { setAsanaTasks(tasks); setAsanaLoading(false); })
       .catch(() => { setAsanaLoading(false); setAsanaError(true); });
-  }, []);
+  }, []);;
 
   const toggleAsana = useCallback(async (gid, name) => {
     const key = gid || name;
@@ -665,11 +629,7 @@ export default function DailyCommandCenter() {
 
   useEffect(() => {
     fetchMyGmailActionItems()
-      .then(data => {
-        setGmailData(data);
-        setGmailError(data.error);
-        setGmailLoading(false);
-      })
+      .then(data => { setGmailData(data); setGmailError(data.error); setGmailLoading(false); })
       .catch(() => { setGmailLoading(false); setGmailError(true); });
   }, []);
 
@@ -680,11 +640,7 @@ export default function DailyCommandCenter() {
 
   useEffect(() => {
     fetchMyCalendarEvents()
-      .then(data => {
-        setCalendarData(data);
-        setCalendarError(data.error);
-        setCalendarLoading(false);
-      })
+      .then(data => { setCalendarData(data); setCalendarError(data.error); setCalendarLoading(false); })
       .catch(() => { setCalendarLoading(false); setCalendarError(true); });
   }, []);
 
@@ -704,10 +660,9 @@ export default function DailyCommandCenter() {
     return productMatch && priorityMatch;
   });
 
-  // Gmail and calendar rows filtered by dismissed IDs
-  const visibleGmailEmails   = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
-  const visibleCalToday      = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
-  const visibleCalTomorrow   = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
+  const visibleGmailEmails = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
+  const visibleCalToday    = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
+  const visibleCalTomorrow = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
 
   const views = [
     { id: 'briefing', label: 'Briefing', icon: '◉' },
@@ -736,11 +691,9 @@ export default function DailyCommandCenter() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
       {/* ── G Unit Banner ── */}
-      <div style={{
-        width: '100%', position: 'relative', overflow: 'hidden',
+      <div style={{ width: '100%', position: 'relative', overflow: 'hidden',
         backgroundImage: 'url(https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=2069&auto=format&fit=crop)',
-        backgroundSize: 'cover', backgroundPosition: 'center 60%',
-      }}>
+        backgroundSize: 'cover', backgroundPosition: 'center 60%' }}>
         <div style={{ position: 'absolute', inset: 0,
           background: 'linear-gradient(to right, rgba(15,23,42,0.85) 0%, rgba(88,28,135,0.80) 50%, rgba(49,46,129,0.85) 100%)' }} />
         <div style={{ position: 'absolute', top: '16px', right: '48px', zIndex: 2,
@@ -814,7 +767,6 @@ export default function DailyCommandCenter() {
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-            {/* Critical */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -830,7 +782,6 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Awaiting Review */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -845,7 +796,6 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Due This Month */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -862,7 +812,6 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Personal To-Do */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -982,6 +931,7 @@ export default function DailyCommandCenter() {
                        onOpenTodo={handleOpenTodo}
                        onSaveTodo={handleSaveTodoFromCard}
                        onCancelTodo={handleCancelTodo}
+                       onDismiss={() => handleDismissGmail(email.id)}
                      />
                    ))}
                  </>
