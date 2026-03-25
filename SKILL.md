@@ -96,7 +96,9 @@ When a new conversation opens, immediately do ALL of the following in parallel, 
    - **Life admin signals:** renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring, government notices, insurance, medical appointments, any deadline language
    Surface ALL detected items as suggested tasks with source context. Use query: `is:unread -category:promotions -category:social after:2026/03/10`, maxResults 20.
 4. 💬 **Slack scan** — Search for `<@U025MCK7MD3>` mentions from the last 7 days. Surface action items as suggestions. Use `Slack:slack_search_public` with query `<@U025MCK7MD3> after:[7-days-ago-date]`.
-5. 📅 **Google Calendar scan** — Check today's and tomorrow's events. Flag meetings needing prep or follow-up.
+5. 📅 **Google Calendar scan** — Check today's and tomorrow's events on Gina's **personal** Google Calendar. Flag events that need a reminder or action (appointments, deadlines, travel, etc.).
+   - ⚠️ **This is personal calendar only** — work meetings are on NIH Outlook (Exchange), which is a separate integration not yet connected.
+   - Do NOT imply that an empty personal calendar means Gina has no meetings today — she likely has NIH work meetings that are simply not visible here.
 
 ### Briefing Format
 
@@ -117,8 +119,8 @@ Good [morning/afternoon/evening], Gina. ☀️ / 🌤️ / 🌙
 --- 📌 Asana — Due Soon ---
 [Overdue and due-this-week items]
 
---- 📅 Calendar ---
-[Today's and tomorrow's events]
+--- 📅 Calendar (Personal Google Calendar) ---
+[Today's and tomorrow's events — note that NIH work calendar is separate]
 
 --- 📧 Gmail ---
 [Action items detected, each with yes/no/edit prompt]
@@ -186,7 +188,7 @@ If bash_tool is unavailable, clearly list all confirmed items and ask Gina to ad
 - **Branch:** `main` (auto-deploys to Vercel on push)
 - **Main app:** `src/App.jsx`
 - **API layer:** `src/api.js`
-- **Serverless proxies:** `api/jira.js`, `api/asana.js`, `api/slack.js`, `api/todos.js`
+- **Serverless proxies:** `api/jira.js`, `api/asana.js`, `api/slack.js`, `api/todos.js`, `api/gmail.js`, `api/calendar.js`
 - **This skill file:** `SKILL.md`
 
 Always fetch current `sha` before updating a file:
@@ -220,6 +222,8 @@ daily-command-center/
 │   ├── jira.js        # Vercel serverless — Jira CORS proxy (Bearer token auth)
 │   ├── asana.js       # Vercel serverless — Asana proxy (fetch/complete/reopen)
 │   ├── slack.js       # Vercel serverless — Slack proxy (search.messages @mentions)
+│   ├── gmail.js       # Vercel serverless — Gmail proxy (action item detection)
+│   ├── calendar.js    # Vercel serverless — Google Calendar proxy (PERSONAL only)
 │   └── todos.js       # Vercel serverless — Personal To-Do CRUD (Upstash Redis)
 ├── public/
 ├── src/
@@ -243,8 +247,17 @@ daily-command-center/
 | `JIRA_USER` | `api/jira.js` | `kuffelgr` — substituted for `currentUser()` in JQL |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
 | `SLACK_TOKEN` | `api/slack.js` | Slack **User OAuth Token** (`xoxp-`) — requires `search:read` User Token Scope |
+| `GMAIL_CLIENT_ID` | `api/gmail.js`, `api/calendar.js` | Google OAuth Client ID |
+| `GMAIL_CLIENT_SECRET` | `api/gmail.js`, `api/calendar.js` | Google OAuth Client Secret |
+| `GMAIL_REFRESH_TOKEN` | `api/gmail.js`, `api/calendar.js` | OAuth refresh token — must include both `gmail.readonly` AND `calendar.readonly` scopes |
 | `UPSTASH_REDIS_REST_URL` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 | `UPSTASH_REDIS_REST_TOKEN` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
+
+### ⚠️ Google Calendar — Personal Only
+- `api/calendar.js` connects to Gina's **personal** Google Calendar (`primary`)
+- **NIH work calendar (Outlook/Exchange) is NOT connected** — requires a separate Microsoft Graph integration
+- When the Calendar section shows no events, it means no personal events — work meetings may still exist in NIH Outlook
+- `needsPrep` flags are tuned for personal events (appointments, deadlines, travel) — NOT work meeting keywords
 
 ### ⚠️ Slack Token — Critical Notes
 - **Must be a User OAuth Token (`xoxp-`)** — Bot tokens (`xoxb-`) will return `not_allowed_token_type`
@@ -268,6 +281,7 @@ daily-command-center/
 https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami
 https://daily-command-center-kappa.vercel.app/api/asana?op=tasks
 https://daily-command-center-kappa.vercel.app/api/slack?op=mentions
+https://daily-command-center-kappa.vercel.app/api/calendar?op=debug
 ```
 
 ### `/api/todos` operations
@@ -316,8 +330,9 @@ Personal todos are Upstash Redis-backed, NOT localStorage.
 | Slack | ✅ Live | `SLACK_TOKEN` (`xoxp-`) in Vercel, `api/slack.js`, `search:read` scope required |
 | Personal To-Do | ✅ Live | Upstash Redis via `api/todos.js`, auto-injected env vars |
 | Grocery List | ✅ Live | localStorage, persists across browser refreshes |
-| Gmail (in-app) | 🔜 Planned | Static placeholder in Briefing tab currently |
-| Calendar (in-app) | 🔜 Planned | Static placeholder in Briefing tab currently |
+| Gmail (in-app) | 🔜 Planned | `api/gmail.js` exists; UI integration pending |
+| Calendar (in-app) | 🔜 Planned | `api/calendar.js` added — **personal Google Calendar only**; UI integration pending |
+| NIH Work Calendar | ❌ Not connected | Requires Microsoft Graph / Outlook integration — separate project |
 
 ---
 
@@ -336,13 +351,15 @@ Personal todos are Upstash Redis-backed, NOT localStorage.
 - [x] Optimistic UI updates with server reconciliation
 - [x] SyncBadge on Asana + todo toggle
 - [x] Briefing tab — Gmail and Slack as **separate cards** ✅ (March 2026)
+- [x] `/api/calendar.js` — personal Google Calendar proxy ✅ (March 2026)
 
 ### 🔜 Planned
-- [ ] Live Gmail action items in the app Briefing tab (`/api/gmail.js`)
-- [ ] Live Google Calendar events in the app Briefing tab (`/api/calendar.js`)
+- [ ] Wire `/api/calendar` into `App.jsx` Briefing tab UI
+- [ ] Wire `/api/gmail` into `App.jsx` Briefing tab UI
 - [ ] Claude directly POSTing confirmed todos via bash_tool during Morning Sync
 - [ ] AI Morning Briefing inside the app (Claude API)
 - [ ] Live Jira status transitions from the app
+- [ ] NIH Outlook calendar integration (Microsoft Graph)
 - [ ] Mobile-optimized layout
 - [ ] PWA / installable on iPhone
 
@@ -356,4 +373,4 @@ Personal todos are Upstash Redis-backed, NOT localStorage.
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v2.0*
+*Last updated: March 2026 — Daily Command Center v2.1*

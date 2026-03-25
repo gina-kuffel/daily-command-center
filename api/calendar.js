@@ -2,6 +2,12 @@
 // Vercel Serverless Function — Google Calendar Proxy
 // Reuses GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
 // (refresh token must have been minted with calendar.readonly scope)
+//
+// ⚠️ PERSONAL CALENDAR ONLY
+// This integration connects to Gina's *personal* Google Calendar — NOT her NIH
+// work calendar (gina.kuffel@nih.gov / Outlook). Work meetings live in NIH
+// Outlook/Exchange, which requires a separate Microsoft Graph integration.
+// Events surfaced here are personal appointments, reminders, family events, etc.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Safe fetch ────────────────────────────────────────────────────────────────
@@ -75,14 +81,27 @@ function formatEvent(event) {
     timeLabel = `${fmt(s)} – ${fmt(e)}`;
   }
 
-  // Flag events that likely need prep or follow-up
+  // Flag events that likely need a reminder or action.
+  // These are personal-life keywords — NOT work meeting keywords.
+  // (Work calendar is NIH Outlook — separate integration.)
   const prepKeywords = [
-    'standup', 'stand-up', 'stand up',
-    'sync', 'meeting', 'review', 'retro', 'retrospective',
-    'demo', 'planning', 'sprint', 'kickoff', 'kick-off',
-    'interview', 'onboarding', '1:1', 'one-on-one',
-    'presentation', 'workshop', 'debrief', 'follow-up', 'follow up',
+    // Medical & health
+    'appointment', 'doctor', 'dentist', 'therapy', 'checkup', 'check-up',
+    'follow-up', 'follow up', 'lab', 'test', 'results', 'procedure',
+    'vaccine', 'vaccination', 'prescription',
+    // Financial & admin
+    'deadline', 'due date', 'payment', 'renewal', 'registration',
+    'filing', 'tax', 'dmv', 'license',
+    // Travel & logistics
+    'flight', 'train', 'hotel', 'reservation', 'check-in', 'checkout',
+    'pickup', 'drop-off', 'drop off',
+    // Social & family
+    'birthday', 'anniversary', 'dinner', 'party', 'event', 'wedding',
+    'shower', 'graduation',
+    // Reminders
+    'remind', 'reminder', 'don\'t forget', 'pick up',
   ];
+
   const lowerSummary = summary.toLowerCase();
   const needsPrep = prepKeywords.some(kw => lowerSummary.includes(kw));
 
@@ -178,6 +197,7 @@ module.exports = async function handler(req, res) {
         tomorrow: tomorrowEvents,
         prepItems,
         totalCount: allEvents.length,
+        note: 'Personal Google Calendar only. NIH work calendar (Outlook) is a separate integration.',
       });
     } catch (e) {
       return res.status(500).json({ error: 'Calendar fetch failed', detail: e.message });
