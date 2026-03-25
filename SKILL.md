@@ -54,8 +54,9 @@ Most MCP tools must be loaded via `tool_search` before calling them:
 - `tool_search(query="Google Calendar events list")` → loads `Google Calendar:` tools
 - `tool_search(query="Slack search messages channels")` → loads `Slack:` tools
 
-**Gina's Asana workspace GID:** `10492628103352`
-**Gina's Asana user GID:** `1206496764679324`
+**Gina's Asana workspace:** `nih.gov`
+**Gina's Slack user ID:** `U025MCK7MD3`
+**CTDC Action Items project GID:** `1202931418983735`
 
 ---
 
@@ -65,8 +66,8 @@ Most MCP tools must be loaded via `tool_search` before calling them:
 - **Products:** ICDC (Integrated Canine Data Commons) and CTDC (Clinical and Translational Data Commons)
 - **Ecosystem:** Cancer Research Data Commons (CRDC)
 - **Tech stack:** React web applications, multiomics data
-- **Work email:** gina.kuffel@nih.gov
-- **GitHub accounts:** `gina-kuffel` (personal), `kuffelgr` (work/NIH)
+- **Work email:** gina.kuffel@nih.gov / kuffelgr@nih.gov
+- **GitHub accounts:** `gina-kuffel` (personal, owns repos), `kuffelgr` (work/NIH, GitHub MCP authenticated as this account)
 - **Machine:** MacBook
 - **Communication style:** Explain technical concepts like I'm 5, spare no details
 
@@ -88,21 +89,49 @@ Most MCP tools must be loaded via `tool_search` before calling them:
 
 When a new conversation opens, immediately do ALL of the following in parallel, then present a single briefing as text in the conversation:
 
-1. 🔵 **Jira scan** — Find all open issues assigned to Gina. Categorize as ICDC or CTDC. Flag overdue or blocked.
-2. 🟢 **Asana scan** — Find all tasks assigned to Gina with upcoming due dates.
+1. 🔵 **Jira scan** — Find all open issues assigned to Gina. Categorize as ICDC or CTDC. Flag overdue or blocked. Use JQL: `assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC`
+2. 🟢 **Asana scan** — Find all tasks assigned to Gina with upcoming due dates. Use the Asana MCP tools.
 3. 📧 **Gmail scan** — Scan unread/flagged emails for:
    - **Work action items:** "please review", "can you", "action required", "your input needed"
-   - **Life admin signals:** renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring, DMV/government notices, insurance, medical appointments, any deadline language
-   Surface ALL detected items as suggested Personal to-dos with source context.
-4. 💬 **Slack scan** — Check for unread DMs and @mentions. Surface action items as suggestions.
+   - **Life admin signals:** renewal notices, appointment reminders, registration deadlines, bills due, subscriptions expiring, government notices, insurance, medical appointments, any deadline language
+   Surface ALL detected items as suggested tasks with source context. Use query: `is:unread -category:promotions -category:social after:2026/03/10`, maxResults 20.
+4. 💬 **Slack scan** — Search for `<@U025MCK7MD3>` mentions from the last 7 days. Surface action items as suggestions. Use `Slack:slack_search_public` with query `<@U025MCK7MD3> after:[7-days-ago-date]`.
 5. 📅 **Google Calendar scan** — Check today's and tomorrow's events. Flag meetings needing prep or follow-up.
+
+### Briefing Format
+
+Present Gmail and Slack as **separate sections** — never combined:
+
+```
+Good [morning/afternoon/evening], Gina. ☀️ / 🌤️ / 🌙
+[date]
+
+📛 Overdue: [count] items
+📌 Due today/this week: [count] items
+🔄 Jira open: [count] | Asana open: [count]
+💡 Suggested from Gmail: [count] | Slack: [count] — review below
+
+--- 🔴 Jira — Needs Attention ---
+[Critical and Ready for Review items]
+
+--- 📌 Asana — Due Soon ---
+[Overdue and due-this-week items]
+
+--- 📅 Calendar ---
+[Today's and tomorrow's events]
+
+--- 📧 Gmail ---
+[Action items detected, each with yes/no/edit prompt]
+
+--- 💬 Slack ---
+[Recent @mentions with channel, sender, snippet, and permalink]
+```
 
 ### When Gina confirms a suggested Personal to-do:
 
 **Claude MUST use `bash_tool` to POST directly to `/api/todos`** to persist it to Upstash Redis.
 This is the critical step — without it, the item only lives in the conversation and disappears.
 
-**Preferred flow — use bash_tool to call the live API:**
 ```bash
 curl -s -X POST "https://daily-command-center-kappa.vercel.app/api/todos?op=add" \
   -H "Content-Type: application/json" \
@@ -110,22 +139,6 @@ curl -s -X POST "https://daily-command-center-kappa.vercel.app/api/todos?op=add"
 ```
 
 If bash_tool is unavailable, clearly list all confirmed items and ask Gina to add them via the To-Do tab in the app.
-
-### Briefing Format
-
-```
-Good [morning/afternoon/evening], Gina. ☀️ / 🌤️ / 🌙
-
-📛 Overdue: [count] items
-📌 Due today: [count] items
-🔄 Newly synced from Jira/Asana: [count] items
-💡 Suggested from Gmail/Slack: [count] items — review below
-
-[For each suggestion, show:]
-📧 [Source] — "[email subject or Slack context]"
-→ Suggested to-do: "[task name]" | Due: [date if detectable] | Priority: [high/medium/low]
-Add this? Yes / No / Edit
-```
 
 ---
 
@@ -162,22 +175,31 @@ Add this? Yes / No / Edit
 - 🛒 Grocery items need no priority or due date — add them directly when asked
 - 🧠 Explain technical concepts like Gina is 5 years old, with full detail
 - 🕐 Greeting adapts to time of day
+- 📧💬 Gmail and Slack are **always presented as separate sections** in the briefing
 
 ---
 
 ## 🐙 GitHub Workflow
 
 - **Repo:** `gina-kuffel/daily-command-center`
+- **Authenticated as:** `kuffelgr` (collaborator with write access)
 - **Branch:** `main` (auto-deploys to Vercel on push)
 - **Main app:** `src/App.jsx`
 - **API layer:** `src/api.js`
-- **Serverless proxies:** `api/jira.js`, `api/asana.js`, `api/todos.js`
+- **Serverless proxies:** `api/jira.js`, `api/asana.js`, `api/slack.js`, `api/todos.js`
 - **This skill file:** `SKILL.md`
 
 Always fetch current `sha` before updating a file:
 ```
-github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="SKILL.md")
+github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path="src/App.jsx")
 ```
+
+### Key Learnings — Code Changes
+- **Always read before writing** — fetch `App.jsx` live from GitHub before making any edits
+- **SHA freshness** — always fetch the current SHA immediately before `create_or_update_file`
+- **Vercel ESLint strictness** — `CI=true` makes unused vars fatal. Remove, don't comment out
+- **Large file timeouts** — pushing `App.jsx` (~600+ lines) may time out. Re-fetch after pushing to verify
+- **Module syntax** — `api/*.js` uses CommonJS (`module.exports`), React app uses `process.env.REACT_APP_*`
 
 ### Commit Message Convention
 ```
@@ -195,15 +217,14 @@ docs: documentation updates
 ```
 daily-command-center/
 ├── api/
-│   ├── jira.js        # Vercel serverless — Jira CORS proxy
-│   ├── asana.js       # Vercel serverless — Asana proxy (complete/reopen/fetch)
+│   ├── jira.js        # Vercel serverless — Jira CORS proxy (Bearer token auth)
+│   ├── asana.js       # Vercel serverless — Asana proxy (fetch/complete/reopen)
+│   ├── slack.js       # Vercel serverless — Slack proxy (search.messages @mentions)
 │   └── todos.js       # Vercel serverless — Personal To-Do CRUD (Upstash Redis)
-├── docs/
-│   └── architecture.svg
 ├── public/
 ├── src/
-│   ├── App.jsx        # Main React app — fetch from GitHub only when editing code
-│   ├── api.js         # Browser-side fetch wrappers
+│   ├── App.jsx        # Main React app — always fetch live from GitHub when editing
+│   ├── api.js         # Browser-side fetch wrappers for all proxies
 │   ├── index.js
 │   └── index.css
 ├── SKILL.md
@@ -212,59 +233,41 @@ daily-command-center/
 └── package.json
 ```
 
-### Data Flow — Personal To-Dos
-
-```
-[Gmail] → Claude detects life-admin item
-    ↓  Gina confirms
-Claude uses bash_tool → POST /api/todos?op=add
-    ↓
-Upstash Redis stores { id, name, due, priority, source, sourceRef, completed }
-    ↓
-React app → GET /api/todos?op=list on load
-    ↓
-To-Do tab renders live, persistent, cross-device list
-
-Gina checks off item in app → POST /api/todos?op=toggle&id=...
-    ↓
-Upstash Redis updated — change persists across all sessions and devices
-```
-
 ### Environment Variables (set in Vercel dashboard)
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `JIRA_TOKEN` | `api/jira.js` | NCI Jira Personal Access Token — **must match `JIRA_PERSONAL_TOKEN` in `claude_desktop_config.json` exactly** |
+| `JIRA_TOKEN` | `api/jira.js` | NCI Jira Personal Access Token (Bearer) |
 | `JIRA_BASE_URL` | `api/jira.js` | `https://tracker.nci.nih.gov` |
-| `JIRA_EMAIL` | `api/jira.js` | Jira username only — `kuffelgr` (NOT the full email address) |
+| `JIRA_EMAIL` | `api/jira.js` | `kuffelgr` (username only, NOT full email) |
 | `JIRA_USER` | `api/jira.js` | `kuffelgr` — substituted for `currentUser()` in JQL |
 | `ASANA_TOKEN` | `api/asana.js` | Asana Personal Access Token |
+| `SLACK_TOKEN` | `api/slack.js` | Slack **User OAuth Token** (`xoxp-`) — requires `search:read` User Token Scope |
 | `UPSTASH_REDIS_REST_URL` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 | `UPSTASH_REDIS_REST_TOKEN` | `api/todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
+
+### ⚠️ Slack Token — Critical Notes
+- **Must be a User OAuth Token (`xoxp-`)** — Bot tokens (`xoxb-`) will return `not_allowed_token_type`
+- **Must have `search:read` User Token Scope** — missing scope returns `missing_scope`
+- **After adding/changing scopes:** must reinstall the Slack app to workspace to generate a new token
+- **After updating in Vercel:** must trigger a manual redeploy (env var changes don't auto-deploy)
+- **To verify:** `https://daily-command-center-kappa.vercel.app/api/slack?op=mentions` — should return `{"mentions":[...],"userId":"U025MCK7MD3"}`
 
 ### 🔑 Jira Auth — Confirmed Working (March 2026)
 
 **tracker.nci.nih.gov uses Bearer token auth for PATs — NOT Basic auth.**
 
-Key learnings from debugging:
-- ✅ `Authorization: Bearer <token>` — works, authenticates as `kuffelgr`
-- ❌ `Authorization: Basic <base64(username:token)>` — returns 401
-- ❌ Bearer with wrong/old token — returns 200 but treats request as anonymous (no assignee field access)
-- ⚠️ `JIRA_EMAIL` must be username only (`kuffelgr`), NOT full email (`kuffelgr@mail.nih.gov`) — full email causes 500
-- ⚠️ `JIRA_TOKEN` in Vercel must exactly match `JIRA_PERSONAL_TOKEN` in `claude_desktop_config.json`
-- ✅ `statusCategory != Done` JQL works correctly once properly authenticated
-- ✅ `currentUser()` is replaced by the proxy with `"kuffelgr"` for reliable JQL resolution
+- ✅ `Authorization: Bearer <token>` — works
+- ❌ `Authorization: Basic <base64>` — returns 401
+- ⚠️ `JIRA_EMAIL` must be `kuffelgr` only, NOT `kuffelgr@mail.nih.gov`
+- ✅ `statusCategory != Done` JQL works correctly when authenticated
+- ✅ `currentUser()` replaced by proxy with `"kuffelgr"`
 
-**Debug URLs** (use these if Jira stops working):
+**Debug URLs:**
 ```
-# Test Bearer auth — should return 200 with your Jira profile
 https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami
-
-# Test Basic auth
-https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami-basic
-
-# Test raw search
-https://daily-command-center-kappa.vercel.app/api/jira?jql=assignee%3D%22kuffelgr%22&maxResults=3&fields=summary,status
+https://daily-command-center-kappa.vercel.app/api/asana?op=tasks
+https://daily-command-center-kappa.vercel.app/api/slack?op=mentions
 ```
 
 ### `/api/todos` operations
@@ -300,45 +303,48 @@ https://daily-command-center-kappa.vercel.app/api/jira?jql=assignee%3D%22kuffelg
 | `dcc_groceries` | Grocery list items |
 | `dcc_grocery_checks` | Grocery checked state |
 
-Personal todos are Upstash Redis-backed, NOT in localStorage.
+Personal todos are Upstash Redis-backed, NOT localStorage.
 
 ---
 
-## ⚙️ Infrastructure — Upstash Redis ✅ COMPLETE
+## ⚙️ Infrastructure Status (as of March 2026)
 
-Upstash Redis is connected and live. Setup was completed March 2026.
-
-- **How it was set up:** Vercel dashboard → Storage → Upstash → Redis → Create database
-- **Env vars injected automatically:** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
-- **Redis key used:** `dcc:todos` (single key storing the full todos array as JSON)
-- **Free tier limits:** 10,000 commands/day, 256MB storage — more than enough for personal use
-- **If the To-Do tab shows a yellow warning:** the env vars may have been rotated or the database was deleted — reconnect Upstash from Vercel Storage tab
+| Integration | Status | Notes |
+|---|---|---|
+| Jira | ✅ Live | Bearer token, `api/jira.js`, confirmed working |
+| Asana | ✅ Live | `ASANA_TOKEN` in Vercel, `api/asana.js`, checkbox write-back works |
+| Slack | ✅ Live | `SLACK_TOKEN` (`xoxp-`) in Vercel, `api/slack.js`, `search:read` scope required |
+| Personal To-Do | ✅ Live | Upstash Redis via `api/todos.js`, auto-injected env vars |
+| Grocery List | ✅ Live | localStorage, persists across browser refreshes |
+| Gmail (in-app) | 🔜 Planned | Static placeholder in Briefing tab currently |
+| Calendar (in-app) | 🔜 Planned | Static placeholder in Briefing tab currently |
 
 ---
 
 ## 🗺️ App Roadmap
 
 ### ✅ Shipped
-- [x] Live Jira fetch via `/api/jira` Vercel proxy ✅ (confirmed working March 2026)
-- [x] Live Asana fetch + checkbox sync via `/api/asana`
-- [x] Grocery list (localStorage, persists across refreshes)
+- [x] Live Jira fetch via `/api/jira` proxy ✅
+- [x] Live Asana fetch + checkbox write-back via `/api/asana` ✅
+- [x] Live Slack @mention fetch via `/api/slack` ✅ (March 2026)
+- [x] Grocery list (localStorage)
 - [x] Time-aware greeting (morning/afternoon/evening)
-- [x] G Unit banner with city skyline SVG
-- [x] Personal To-Do tab with priority + due date
+- [x] G Unit banner with city skyline background
+- [x] Personal To-Do tab with priority, due date, source badges
 - [x] `/api/todos` — Upstash Redis-backed persistent todo store ✅
-- [x] Upstash Redis connected to Vercel ✅
 - [x] Todo source tagging (Gmail 📧 / Slack 💬 / Manual ✏️)
 - [x] Optimistic UI updates with server reconciliation
-- [x] SyncBadge on todo toggle
+- [x] SyncBadge on Asana + todo toggle
+- [x] Briefing tab — Gmail and Slack as **separate cards** ✅ (March 2026)
 
 ### 🔜 Planned
+- [ ] Live Gmail action items in the app Briefing tab (`/api/gmail.js`)
+- [ ] Live Google Calendar events in the app Briefing tab (`/api/calendar.js`)
 - [ ] Claude directly POSTing confirmed todos via bash_tool during Morning Sync
-- [ ] Gmail + Slack action-item panel inside the app UI
-- [ ] Google Calendar panel
 - [ ] AI Morning Briefing inside the app (Claude API)
+- [ ] Live Jira status transitions from the app
 - [ ] Mobile-optimized layout
 - [ ] PWA / installable on iPhone
-- [ ] Live Jira status transitions from the app
 
 ---
 
@@ -350,4 +356,4 @@ Upstash Redis is connected and live. Setup was completed March 2026.
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v1.9*
+*Last updated: March 2026 — Daily Command Center v2.0*
