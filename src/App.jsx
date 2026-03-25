@@ -4,6 +4,7 @@ import {
   fetchMyJiraTasks, fetchMyAsanaTasks,
   fetchMySlackMentions,
   fetchMyGmailActionItems,
+  fetchMyCalendarEvents,
   fetchTodos, addTodoAPI, toggleTodoAPI, deleteTodoAPI,
 } from './api.js';
 
@@ -14,6 +15,7 @@ const hour     = today.getHours();
 const greeting      = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 const greetingEmoji = hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙';
 const dateStr  = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const tomorrowLabel = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
 const endOfThisMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
@@ -251,6 +253,45 @@ const GmailRow = ({ email }) => (
   </div>
 );
 
+// ─── Calendar Event Row ───────────────────────────────────────────────────────
+const CalendarEventRow = ({ event }) => (
+  <div style={{
+    display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px 10px',
+    borderRadius: '8px', marginBottom: '4px',
+    background: event.needsPrep ? '#fffbeb' : '#fafafa',
+    border: event.needsPrep ? '1px solid #fde68a' : '1px solid #f1f5f9',
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1' }}>{event.timeLabel}</span>
+      {event.isHoliday && (
+        <span style={{ fontSize: '10px', background: '#fdf4ff', color: '#7e22ce',
+          border: '1px solid #e9d5ff', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>🎉 Holiday</span>
+      )}
+      {event.needsPrep && !event.isHoliday && (
+        <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e',
+          border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>⏰ Reminder</span>
+      )}
+    </div>
+    <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#1e293b', lineHeight: '1.3' }}>
+      {event.summary}
+    </p>
+    {event.location && (
+      <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>📍 {event.location}</p>
+    )}
+    {event.attendees && event.attendees.length > 0 && (
+      <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+        👥 {event.attendees.slice(0, 4).join(', ')}{event.attendees.length > 4 ? ` +${event.attendees.length - 4} more` : ''}
+      </p>
+    )}
+    {event.htmlLink && (
+      <a href={event.htmlLink} target="_blank" rel="noreferrer"
+        style={{ fontSize: '11px', color: '#0369a1', textDecoration: 'none', alignSelf: 'flex-start', marginTop: '2px' }}>
+        Open in Google Calendar →
+      </a>
+    )}
+  </div>
+);
+
 const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px',
     borderRadius: '8px', background: '#fafafa', marginBottom: '4px', border: '1px solid #f1f5f9' }}>
@@ -441,9 +482,9 @@ export default function DailyCommandCenter() {
   }, []);
 
   // ── Live Gmail ────────────────────────────────────────────────────────────
-  const [gmailData, setGmailData]     = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
+  const [gmailData, setGmailData]       = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
   const [gmailLoading, setGmailLoading] = useState(true);
-  const [gmailError, setGmailError]   = useState(false);
+  const [gmailError, setGmailError]     = useState(false);
 
   useEffect(() => {
     fetchMyGmailActionItems()
@@ -453,6 +494,21 @@ export default function DailyCommandCenter() {
         setGmailLoading(false);
       })
       .catch(() => { setGmailLoading(false); setGmailError(true); });
+  }, []);
+
+  // ── Live Calendar (personal Google Calendar only) ─────────────────────────
+  const [calendarData, setCalendarData]       = useState({ today: [], tomorrow: [], prepItems: [], totalCount: 0 });
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError]     = useState(false);
+
+  useEffect(() => {
+    fetchMyCalendarEvents()
+      .then(data => {
+        setCalendarData(data);
+        setCalendarError(data.error);
+        setCalendarLoading(false);
+      })
+      .catch(() => { setCalendarLoading(false); setCalendarError(true); });
   }, []);
 
   // ── Derived counts ────────────────────────────────────────────────────────
@@ -479,8 +535,8 @@ export default function DailyCommandCenter() {
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
-  const isLoading     = jiraLoading || asanaLoading || todosLoading || slackLoading || gmailLoading;
-  const isError       = jiraError || asanaError || slackError || gmailError;
+  const isLoading     = jiraLoading || asanaLoading || todosLoading || slackLoading || gmailLoading || calendarLoading;
+  const isError       = jiraError || asanaError || slackError || gmailError || calendarError;
   const syncDotColor  = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncTextColor = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncBorder    = isLoading ? 'rgba(245,158,11,0.3)' : isError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
@@ -651,16 +707,47 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Calendar */}
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
+            {/* Calendar — live personal Google Calendar */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📅 Calendar</h2>
+                {!calendarLoading && !calendarError && (
+                  <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>
+                    {calendarData.totalCount} event{calendarData.totalCount !== 1 ? 's' : ''} · personal calendar
+                  </span>
+                )}
               </div>
-              <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '16px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>No events found on your connected Gmail calendar today or tomorrow.</p>
-                <p style={{ color: '#94a3b8', fontSize: '11px', margin: '6px 0 0' }}>Your NIH calendar (gina.kuffel@nih.gov) may require separate connection.</p>
+              <div style={{ padding: '0 16px 16px' }}>
+                {calendarLoading ? <LoadingRows message="Loading calendar…" color="#0369a1" /> :
+                 calendarError ? (
+                   <div style={{ background: '#fef2f2', borderRadius: '10px', padding: '14px', border: '1px solid #fecaca', margin: '8px 0' }}>
+                     <p style={{ color: '#991b1b', fontSize: '13px', margin: 0, fontWeight: 600 }}>✗ Could not load calendar</p>
+                     <p style={{ color: '#b91c1c', fontSize: '12px', margin: '4px 0 0' }}>Check that GMAIL_REFRESH_TOKEN was minted with calendar.readonly scope.</p>
+                   </div>
+                 ) : (
+                   <>
+                     {/* Today */}
+                     <p style={{ margin: '8px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
+                       textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today</p>
+                     {calendarData.today.length === 0
+                       ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 12px 4px' }}>No personal events today</p>
+                       : calendarData.today.map(e => <CalendarEventRow key={e.id} event={e} />)
+                     }
+                     {/* Tomorrow */}
+                     <p style={{ margin: '12px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
+                       textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tomorrow — {tomorrowLabel}</p>
+                     {calendarData.tomorrow.length === 0
+                       ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 4px 4px' }}>No personal events tomorrow</p>
+                       : calendarData.tomorrow.map(e => <CalendarEventRow key={e.id} event={e} />)
+                     }
+                     {/* NIH calendar note */}
+                     <p style={{ color: '#94a3b8', fontSize: '11px', margin: '10px 0 0 4px', fontStyle: 'italic' }}>
+                       ℹ️ Personal Google Calendar only — NIH work meetings are in Outlook
+                     </p>
+                   </>
+                 )}
               </div>
             </div>
 

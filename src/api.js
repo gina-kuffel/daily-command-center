@@ -4,11 +4,12 @@
 // ALL external API calls go through Vercel serverless proxies so that tokens
 // are never exposed in the browser bundle.
 //
-//   /api/jira   — Jira Server/DC (tracker.nci.nih.gov)
-//   /api/asana  — Asana (app.asana.com)
-//   /api/slack  — Slack (slack.com)
-//   /api/gmail  — Gmail (personal inbox)
-//   /api/todos  — Personal To-Do store (Vercel KV)
+//   /api/jira      — Jira Server/DC (tracker.nci.nih.gov)
+//   /api/asana     — Asana (app.asana.com)
+//   /api/slack     — Slack (slack.com)
+//   /api/gmail     — Gmail (personal inbox)
+//   /api/calendar  — Google Calendar (personal — NOT NIH Outlook)
+//   /api/todos     — Personal To-Do store (Vercel KV)
 //
 // Create React App env vars in the browser must use REACT_APP_ prefix.
 // Server-side proxy env vars need no prefix (JIRA_TOKEN, ASANA_TOKEN, etc.).
@@ -147,6 +148,29 @@ export async function fetchMyGmailActionItems() {
   } catch (e) {
     console.error('[Gmail] Fetch error:', e);
     return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
+  }
+}
+
+// ── GOOGLE CALENDAR (personal only — NOT NIH Outlook) ─────────────────────────
+
+export async function fetchMyCalendarEvents() {
+  try {
+    const res = await fetch('/api/calendar?op=events');
+    if (!res.ok) {
+      console.error('[Calendar] Proxy error:', res.status, await res.json().catch(() => ({})));
+      return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true };
+    }
+    const data = await res.json();
+    return {
+      today:      data.today      || [],
+      tomorrow:   data.tomorrow   || [],
+      prepItems:  data.prepItems  || [],
+      totalCount: data.totalCount || 0,
+      error:      false,
+    };
+  } catch (e) {
+    console.error('[Calendar] Fetch error:', e);
+    return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true };
   }
 }
 
