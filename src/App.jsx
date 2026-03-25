@@ -721,7 +721,9 @@ export default function DailyCommandCenter() {
     return productMatch && priorityMatch;
   });
 
-  const visibleGmailEmails = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
+  const visibleGmailEmails   = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
+  // Derive live counts from what's actually visible — updates instantly on dismiss/add-to-do
+  const visibleActionedCount = visibleGmailEmails.filter(e => e.isActioned).length;
   const visibleCalToday    = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
   const visibleCalTomorrow = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
 
@@ -1007,7 +1009,7 @@ export default function DailyCommandCenter() {
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📧 Gmail</h2>
                 {!gmailLoading && !gmailError && (
                   <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>
-                    {gmailData.totalUnread} unread · {gmailData.actionedCount} need action · last 14 days
+                    {visibleGmailEmails.length} showing · {visibleActionedCount} need action · last 14 days
                   </span>
                 )}
               </div>
@@ -1023,11 +1025,11 @@ export default function DailyCommandCenter() {
                  </div>
                ) : (
                  <>
-                   {gmailData.actionedCount > 0 && (
+                   {visibleActionedCount > 0 && (
                      <div style={{ background: '#fffbeb', borderRadius: '8px', padding: '8px 12px',
                        border: '1px solid #fde68a', marginBottom: '10px' }}>
                        <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
-                         ⚡ {gmailData.actionedCount} email{gmailData.actionedCount !== 1 ? 's' : ''} need your attention — shown first
+                         ⚡ {visibleActionedCount} email{visibleActionedCount !== 1 ? 's' : ''} need your attention — shown first
                        </p>
                      </div>
                    )}
