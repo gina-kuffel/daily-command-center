@@ -6,6 +6,7 @@
 //
 //   /api/jira   — Jira Server/DC (tracker.nci.nih.gov)
 //   /api/asana  — Asana (app.asana.com)
+//   /api/slack  — Slack (slack.com)
 //   /api/todos  — Personal To-Do store (Vercel KV)
 //
 // Create React App env vars in the browser must use REACT_APP_ prefix.
@@ -17,8 +18,6 @@ const todayStr = new Date().toISOString().slice(0, 10);
 // ── JIRA ─────────────────────────────────────────────────────────────────────
 
 export async function fetchMyJiraTasks() {
-  // currentUser() is replaced with the literal username by api/jira.js proxy.
-  // statusCategory != Done works on this instance (confirmed via live response).
   const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
   const params = new URLSearchParams({
     jql,
@@ -108,6 +107,23 @@ export async function reopenAsanaTask(gid) {
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
+  }
+}
+
+// ── SLACK ─────────────────────────────────────────────────────────────────────
+
+export async function fetchMySlackMentions() {
+  try {
+    const res = await fetch('/api/slack?op=mentions');
+    if (!res.ok) {
+      console.error('[Slack] Proxy error:', res.status, await res.json().catch(() => ({})));
+      return [];
+    }
+    const data = await res.json();
+    return data.mentions || [];
+  } catch (e) {
+    console.error('[Slack] Fetch error:', e);
+    return [];
   }
 }
 
