@@ -3,7 +3,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Layer 1: Conversational action language ───────────────────────────────────
-// Things people write when they need something from you
 const ACTION_PHRASES = [
   'please review', 'can you', 'could you', 'would you',
   'action required', 'action needed', 'your input', 'your approval',
@@ -15,7 +14,6 @@ const ACTION_PHRASES = [
 ];
 
 // ── Layer 2: Transactional/notice patterns ────────────────────────────────────
-// Things automated systems send that still require YOU to do something
 const NOTICE_PATTERNS = [
   // Renewals & expirations
   'renewal', 'renew', 'expires', 'expiring', 'expiration',
@@ -28,7 +26,7 @@ const NOTICE_PATTERNS = [
   // Appointments & confirmations
   'appointment', 'reminder', 'confirmation needed', 'confirm your',
   'schedule', 'rsvp', 'register by', 'deadline',
-  // Shipping & deliveries (things you need to be home for / track)
+  // Shipping & deliveries
   'delivery attempt', 'out for delivery', 'signature required',
   'pickup available', 'held at',
   // Security & account
@@ -41,15 +39,13 @@ const NOTICE_PATTERNS = [
 ];
 
 // ── Layer 3: Sender domain flags ──────────────────────────────────────────────
-// Domains that almost always send notices requiring action.
-// Even if the subject looks boring, mail from these senders gets flagged.
 const ACTION_SENDER_DOMAINS = [
   // Government — federal, state, local
   '.gov',
   // Financial institutions
   'chase.com', 'bankofamerica.com', 'wellsfargo.com', 'citi.com',
   'capitalone.com', 'discover.com', 'americanexpress.com', 'amex.com',
-  'navient.com', 'salliemae.com', 'mohela.com',        // student loans
+  'navient.com', 'salliemae.com', 'mohela.com',
   'irs.gov', 'treasury.gov',
   // Insurance
   'aetna.com', 'bluecross.com', 'bcbs.com', 'cigna.com', 'humana.com',
@@ -61,8 +57,8 @@ const ACTION_SENDER_DOMAINS = [
   'att.com', 'verizon.com', 'comcast.com', 'xfinity.com', 'spectrum.com',
   // Healthcare
   'mychart.com', 'epic.com', 'walgreens.com', 'cvs.com', 'riteaid.com',
-  // Subscriptions that auto-renew
-  'netflix.com', 'spotify.com', 'apple.com', 'google.com', 'amazon.com',
+  // Subscriptions that auto-renew (spotify removed — too noisy)
+  'netflix.com', 'apple.com', 'google.com', 'amazon.com',
 ];
 
 // ── Sender domain check ───────────────────────────────────────────────────────
@@ -75,21 +71,17 @@ function getSenderDomainFlag(fromRaw) {
 }
 
 // ── Main detection function ───────────────────────────────────────────────────
-// Returns a human-readable reason string, or null if not actionable
 function detectActionReason(subject, snippet, fromRaw) {
   const haystack = `${subject} ${snippet}`.toLowerCase();
 
-  // Layer 1: conversational phrases
   for (const phrase of ACTION_PHRASES) {
     if (haystack.includes(phrase)) return phrase;
   }
 
-  // Layer 2: transactional/notice patterns
   for (const pattern of NOTICE_PATTERNS) {
     if (haystack.includes(pattern)) return pattern;
   }
 
-  // Layer 3: trusted action sender domains
   const domainFlag = getSenderDomainFlag(fromRaw);
   if (domainFlag) return `sender: ${domainFlag}`;
 
@@ -177,9 +169,6 @@ module.exports = async function handler(req, res) {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - 14);
       const after = `${cutoffDate.getFullYear()}/${String(cutoffDate.getMonth() + 1).padStart(2, '0')}/${String(cutoffDate.getDate()).padStart(2, '0')}`;
-
-      // Fetch ALL unread mail — promotions/social excluded, but updates included
-      // because government/financial notices often land in Updates
       const query = `is:unread -category:promotions -category:social after:${after}`;
 
       const listParams = new URLSearchParams({
@@ -206,7 +195,6 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ emails: [], totalUnread: 0, actionedCount: 0 });
       }
 
-      // Fetch metadata in parallel — skip any that fail
       const metaResults = await Promise.allSettled(
         messageIds.map(id =>
           safeFetchJson(
@@ -226,8 +214,6 @@ module.exports = async function handler(req, res) {
           const dateHdr  = headers.find(h => h.name === 'Date')?.value    || '';
           const snippet  = msg.snippet || '';
           const fromName = from.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || from;
-
-          // Pass the raw From header to detectActionReason for domain matching
           const flagReason = detectActionReason(subject, snippet, from);
 
           return {
@@ -241,7 +227,6 @@ module.exports = async function handler(req, res) {
             link:       `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
           };
         })
-        // Actioned emails first, then the rest
         .sort((a, b) => (b.isActioned ? 1 : 0) - (a.isActioned ? 1 : 0));
 
       return res.status(200).json({
