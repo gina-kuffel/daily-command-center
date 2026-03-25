@@ -88,6 +88,82 @@ const GBadge = ({ size = 32 }) => (
   </div>
 );
 
+// ─── AddTodoInline ─────────────────────────────────────────────────────────────
+// Inline confirm form that appears under a Gmail or Calendar row.
+// Props:
+//   defaultName  – pre-filled task name string
+//   onSave(name, due, priority) – called when user confirms
+//   onCancel()   – called when user dismisses without saving
+const AddTodoInline = ({ defaultName, onSave, onCancel }) => {
+  const [name, setName]       = useState(defaultName);
+  const [due, setDue]         = useState('');
+  const [priority, setPriority] = useState('');
+
+  const inputBase = {
+    padding: '7px 10px', borderRadius: '6px', border: '1px solid #e2e8f0',
+    fontSize: '12px', outline: 'none', fontFamily: 'inherit', background: '#fff',
+  };
+
+  return (
+    <div style={{
+      margin: '6px 0 4px 0', padding: '10px 12px', borderRadius: '8px',
+      background: '#f0f9ff', border: '1px solid #bae6fd',
+    }}>
+      <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        ➕ Add to Personal To-Do
+      </p>
+      <input
+        type="text"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        style={{ ...inputBase, width: '100%', boxSizing: 'border-box', marginBottom: '6px' }}
+        autoFocus
+      />
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+        <input
+          type="date"
+          value={due}
+          onChange={e => setDue(e.target.value)}
+          style={{ ...inputBase, flex: 1, color: due ? '#334155' : '#94a3b8' }}
+        />
+        <select
+          value={priority}
+          onChange={e => setPriority(e.target.value)}
+          style={{ ...inputBase, flex: 1, color: priority ? '#334155' : '#94a3b8' }}
+        >
+          <option value="">Priority (optional)</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <button
+          onClick={() => onSave(name.trim(), due || null, priority || null)}
+          disabled={!name.trim()}
+          style={{
+            padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700,
+            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+            color: '#fff', border: 'none', cursor: name.trim() ? 'pointer' : 'not-allowed',
+            opacity: name.trim() ? 1 : 0.5,
+          }}
+        >
+          Save to To-Do
+        </button>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+            background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Components ───────────────────────────────────────────────────────────────
 
 const SyncBadge = ({ status }) => {
@@ -221,76 +297,130 @@ const SlackMentionRow = ({ mention }) => {
   );
 };
 
-const GmailRow = ({ email }) => (
-  <div style={{
-    display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 10px',
-    borderRadius: '8px', marginBottom: '4px',
-    background: email.isActioned ? '#fffbeb' : '#fafafa',
-    border: email.isActioned ? '1px solid #fde68a' : '1px solid #f1f5f9',
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: '11px', fontWeight: 700, color: '#ea4335' }}>{email.from}</span>
-      {email.isActioned && (
-        <span style={{
-          fontSize: '10px', fontWeight: 700, color: '#92400e',
-          background: '#fef3c7', border: '1px solid #fde68a',
-          borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase',
-        }}>
-          ⚡ {email.flagReason}
-        </span>
-      )}
-    </div>
-    <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#334155', lineHeight: '1.3' }}>
-      {email.subject}
-    </p>
-    <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
-      {email.snippet.length > 160 ? email.snippet.slice(0, 160) + '…' : email.snippet}
-    </p>
-    <a href={email.link} target="_blank" rel="noreferrer"
-      style={{ fontSize: '11px', color: '#ea4335', textDecoration: 'none', alignSelf: 'flex-start', marginTop: '2px' }}>
-      Open in Gmail →
-    </a>
-  </div>
-);
-
-// ─── Calendar Event Row ───────────────────────────────────────────────────────
-const CalendarEventRow = ({ event }) => (
-  <div style={{
-    display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px 10px',
-    borderRadius: '8px', marginBottom: '4px',
-    background: event.needsPrep ? '#fffbeb' : '#fafafa',
-    border: event.needsPrep ? '1px solid #fde68a' : '1px solid #f1f5f9',
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1' }}>{event.timeLabel}</span>
-      {event.isHoliday && (
-        <span style={{ fontSize: '10px', background: '#fdf4ff', color: '#7e22ce',
-          border: '1px solid #e9d5ff', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>🎉 Holiday</span>
-      )}
-      {event.needsPrep && !event.isHoliday && (
-        <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e',
-          border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>⏰ Reminder</span>
-      )}
-    </div>
-    <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#1e293b', lineHeight: '1.3' }}>
-      {event.summary}
-    </p>
-    {event.location && (
-      <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>📍 {event.location}</p>
-    )}
-    {event.attendees && event.attendees.length > 0 && (
-      <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-        👥 {event.attendees.slice(0, 4).join(', ')}{event.attendees.length > 4 ? ` +${event.attendees.length - 4} more` : ''}
+// ─── GmailRow ─────────────────────────────────────────────────────────────────
+// addingTodoFor / onOpenTodo / onSaveTodo / onCancelTodo wired in from parent
+const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }) => {
+  const rowId = `gmail_${email.id}`;
+  const isOpen = addingTodoFor === rowId;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 10px',
+      borderRadius: '8px', marginBottom: '4px',
+      background: email.isActioned ? '#fffbeb' : '#fafafa',
+      border: email.isActioned ? '1px solid #fde68a' : '1px solid #f1f5f9',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#ea4335' }}>{email.from}</span>
+        {email.isActioned && (
+          <span style={{
+            fontSize: '10px', fontWeight: 700, color: '#92400e',
+            background: '#fef3c7', border: '1px solid #fde68a',
+            borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase',
+          }}>
+            ⚡ {email.flagReason}
+          </span>
+        )}
+      </div>
+      <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#334155', lineHeight: '1.3' }}>
+        {email.subject}
       </p>
-    )}
-    {event.htmlLink && (
-      <a href={event.htmlLink} target="_blank" rel="noreferrer"
-        style={{ fontSize: '11px', color: '#0369a1', textDecoration: 'none', alignSelf: 'flex-start', marginTop: '2px' }}>
-        Open in Google Calendar →
-      </a>
-    )}
-  </div>
-);
+      <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
+        {email.snippet.length > 160 ? email.snippet.slice(0, 160) + '…' : email.snippet}
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
+        {email.link && (
+          <a href={email.link} target="_blank" rel="noreferrer"
+            style={{ fontSize: '11px', color: '#ea4335', textDecoration: 'none' }}>
+            Open in Gmail →
+          </a>
+        )}
+        {!isOpen && (
+          <button
+            onClick={() => onOpenTodo(rowId)}
+            style={{
+              fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
+              border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px',
+              cursor: 'pointer', marginLeft: 'auto',
+            }}
+          >
+            ➕ To-Do
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <AddTodoInline
+          defaultName={`Reply to: ${email.subject}`}
+          onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)}
+          onCancel={onCancelTodo}
+        />
+      )}
+    </div>
+  );
+};
+
+// ─── CalendarEventRow ─────────────────────────────────────────────────────────
+const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }) => {
+  const rowId = `cal_${event.id}`;
+  const isOpen = addingTodoFor === rowId;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: '3px', padding: '8px 10px',
+      borderRadius: '8px', marginBottom: '4px',
+      background: event.needsPrep ? '#fffbeb' : '#fafafa',
+      border: event.needsPrep ? '1px solid #fde68a' : '1px solid #f1f5f9',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1' }}>{event.timeLabel}</span>
+        {event.isHoliday && (
+          <span style={{ fontSize: '10px', background: '#fdf4ff', color: '#7e22ce',
+            border: '1px solid #e9d5ff', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>🎉 Holiday</span>
+        )}
+        {event.needsPrep && !event.isHoliday && (
+          <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e',
+            border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', fontWeight: 600 }}>⏰ Reminder</span>
+        )}
+      </div>
+      <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#1e293b', lineHeight: '1.3' }}>
+        {event.summary}
+      </p>
+      {event.location && (
+        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>📍 {event.location}</p>
+      )}
+      {event.attendees && event.attendees.length > 0 && (
+        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+          👥 {event.attendees.slice(0, 4).join(', ')}{event.attendees.length > 4 ? ` +${event.attendees.length - 4} more` : ''}
+        </p>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
+        {event.htmlLink && (
+          <a href={event.htmlLink} target="_blank" rel="noreferrer"
+            style={{ fontSize: '11px', color: '#0369a1', textDecoration: 'none' }}>
+            Open in Google Calendar →
+          </a>
+        )}
+        {!isOpen && (
+          <button
+            onClick={() => onOpenTodo(rowId)}
+            style={{
+              fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff',
+              border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px',
+              cursor: 'pointer', marginLeft: 'auto',
+            }}
+          >
+            ➕ To-Do
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <AddTodoInline
+          defaultName={`Prep for: ${event.summary}`}
+          onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)}
+          onCancel={onCancelTodo}
+        />
+      )}
+    </div>
+  );
+};
 
 const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px',
@@ -365,6 +495,53 @@ export default function DailyCommandCenter() {
   const [checkedAsana, setCheckedAsana]     = useState({});
   const [jiraFilter, setJiraFilter]         = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
+
+  // ── "Add to To-Do" inline form state ─────────────────────────────────────
+  // addingTodoFor: string ID of the row that has the inline form open, or null
+  // dismissedGmailIds / dismissedCalendarIds: items removed after "Save to To-Do"
+  const [addingTodoFor, setAddingTodoFor]         = useState(null);
+  const [dismissedGmailIds, setDismissedGmailIds] = useState(new Set());
+  const [dismissedCalIds, setDismissedCalIds]     = useState(new Set());
+
+  const handleOpenTodo  = (rowId) => setAddingTodoFor(rowId);
+  const handleCancelTodo = ()     => setAddingTodoFor(null);
+
+  const handleSaveTodoFromCard = async (rowId, name, due, priority) => {
+    if (!name) return;
+    // Determine source and dismiss
+    const isGmail = rowId.startsWith('gmail_');
+    const isCal   = rowId.startsWith('cal_');
+    const source  = isGmail ? 'gmail' : 'manual';
+
+    // Optimistic UI: close form immediately, dismiss the row
+    setAddingTodoFor(null);
+    if (isGmail) {
+      const emailId = rowId.replace('gmail_', '');
+      setDismissedGmailIds(prev => new Set([...prev, emailId]));
+    }
+    if (isCal) {
+      const calId = rowId.replace('cal_', '');
+      setDismissedCalIds(prev => new Set([...prev, calId]));
+    }
+
+    // Save to Redis via API
+    const optimistic = {
+      id: `optimistic_${Date.now()}`,
+      name,
+      due,
+      priority,
+      source,
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+    setTodos(p => [optimistic, ...p]);
+    const result = await addTodoAPI({ name, due, priority });
+    if (result.success) {
+      setTodos(p => p.map(t => t.id === optimistic.id ? result.todo : t));
+    } else {
+      setTodos(p => p.filter(t => t.id !== optimistic.id));
+    }
+  };
 
   // ── Personal To-Do ────────────────────────────────────────────────────────
   const [todos, setTodos]               = useState([]);
@@ -496,7 +673,7 @@ export default function DailyCommandCenter() {
       .catch(() => { setGmailLoading(false); setGmailError(true); });
   }, []);
 
-  // ── Live Calendar (personal Google Calendar only) ─────────────────────────
+  // ── Live Calendar ─────────────────────────────────────────────────────────
   const [calendarData, setCalendarData]       = useState({ today: [], tomorrow: [], prepItems: [], totalCount: 0 });
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError]     = useState(false);
@@ -526,6 +703,11 @@ export default function DailyCommandCenter() {
     const priorityMatch = jiraPriorityFilter === 'All' || t.priority === jiraPriorityFilter;
     return productMatch && priorityMatch;
   });
+
+  // Gmail and calendar rows filtered by dismissed IDs
+  const visibleGmailEmails   = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
+  const visibleCalToday      = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
+  const visibleCalTomorrow   = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
 
   const views = [
     { id: 'briefing', label: 'Briefing', icon: '◉' },
@@ -692,7 +874,7 @@ export default function DailyCommandCenter() {
                  todosError === 'kv_missing' ? (
                    <LoadingRows message="⚠ Vercel KV not set up yet — see setup instructions." color="#f59e0b" />
                  ) : activeTodos.length === 0 ? (
-                   <LoadingRows message="No personal to-dos — Claude will surface items from Gmail each morning ✓" color="#15803d" />
+                   <LoadingRows message="No personal to-dos — use ➕ To-Do on any Gmail or Calendar item below ✓" color="#15803d" />
                  ) : (
                    activeTodos.slice(0, 5).map(t => (
                      <TodoItem key={t.id} item={t} onToggle={handleToggleTodo}
@@ -707,7 +889,7 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Calendar — live personal Google Calendar */}
+            {/* Calendar */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -728,21 +910,32 @@ export default function DailyCommandCenter() {
                    </div>
                  ) : (
                    <>
-                     {/* Today */}
                      <p style={{ margin: '8px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
                        textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today</p>
-                     {calendarData.today.length === 0
+                     {visibleCalToday.length === 0
                        ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 12px 4px' }}>No personal events today</p>
-                       : calendarData.today.map(e => <CalendarEventRow key={e.id} event={e} />)
+                       : visibleCalToday.map(e => (
+                           <CalendarEventRow key={e.id} event={e}
+                             addingTodoFor={addingTodoFor}
+                             onOpenTodo={handleOpenTodo}
+                             onSaveTodo={handleSaveTodoFromCard}
+                             onCancelTodo={handleCancelTodo}
+                           />
+                         ))
                      }
-                     {/* Tomorrow */}
                      <p style={{ margin: '12px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
                        textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tomorrow — {tomorrowLabel}</p>
-                     {calendarData.tomorrow.length === 0
+                     {visibleCalTomorrow.length === 0
                        ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 4px 4px' }}>No personal events tomorrow</p>
-                       : calendarData.tomorrow.map(e => <CalendarEventRow key={e.id} event={e} />)
+                       : visibleCalTomorrow.map(e => (
+                           <CalendarEventRow key={e.id} event={e}
+                             addingTodoFor={addingTodoFor}
+                             onOpenTodo={handleOpenTodo}
+                             onSaveTodo={handleSaveTodoFromCard}
+                             onCancelTodo={handleCancelTodo}
+                           />
+                         ))
                      }
-                     {/* NIH calendar note */}
                      <p style={{ color: '#94a3b8', fontSize: '11px', margin: '10px 0 0 4px', fontStyle: 'italic' }}>
                        ℹ️ Personal Google Calendar only — NIH work meetings are in Outlook
                      </p>
@@ -751,7 +944,7 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Gmail — live */}
+            {/* Gmail */}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
@@ -769,7 +962,7 @@ export default function DailyCommandCenter() {
                    <p style={{ color: '#991b1b', fontSize: '13px', margin: 0, fontWeight: 600 }}>✗ Could not load Gmail</p>
                    <p style={{ color: '#b91c1c', fontSize: '12px', margin: '4px 0 0' }}>Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Vercel environment variables.</p>
                  </div>
-               ) : gmailData.emails.length === 0 ? (
+               ) : visibleGmailEmails.length === 0 ? (
                  <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
                    <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ Inbox clear — no unread personal emails in the last 14 days</p>
                  </div>
@@ -783,12 +976,19 @@ export default function DailyCommandCenter() {
                        </p>
                      </div>
                    )}
-                   {gmailData.emails.map(email => <GmailRow key={email.id} email={email} />)}
+                   {visibleGmailEmails.map(email => (
+                     <GmailRow key={email.id} email={email}
+                       addingTodoFor={addingTodoFor}
+                       onOpenTodo={handleOpenTodo}
+                       onSaveTodo={handleSaveTodoFromCard}
+                       onCancelTodo={handleCancelTodo}
+                     />
+                   ))}
                  </>
                )}
             </div>
 
-            {/* Slack — live */}
+            {/* Slack */}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
@@ -993,7 +1193,7 @@ export default function DailyCommandCenter() {
               {todosLoading ? <LoadingRows message="Loading to-dos…" /> :
                activeTodos.length === 0 ? (
                 <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                  No personal to-dos yet — Claude will detect items from Gmail each morning, or add one above ✓
+                  No personal to-dos yet — use ➕ To-Do on Gmail or Calendar items, or add one above ✓
                 </p>
                ) : activeTodos.map(t => (
                 <TodoItem key={t.id} item={t} onToggle={handleToggleTodo}
