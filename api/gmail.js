@@ -1,35 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Vercel Serverless Function — Gmail Proxy
-//
-// WHY THIS EXISTS:
-// Keeps Google OAuth credentials server-side, never in the browser bundle.
-// This proxy runs on Vercel, calls the Gmail REST API, and returns only
-// the data the app needs.
-//
-// Supports one operation via ?op= query param:
-//   op=action_items  — fetch recent unread personal emails and flag ones
-//                      that contain action language
-//
-// REQUIRED VERCEL ENV VARS (server-side only, no REACT_APP_ prefix):
-//   GMAIL_CLIENT_ID     — from Google Cloud Console → OAuth 2.0 Client
-//   GMAIL_CLIENT_SECRET — from Google Cloud Console → OAuth 2.0 Client
-//   GMAIL_REFRESH_TOKEN — long-lived refresh token from OAuth playground
-//                         or your own OAuth flow
-//
-// HOW TO GET THESE (one-time setup):
-//   1. Go to console.cloud.google.com → APIs & Services → Credentials
-//   2. Create an OAuth 2.0 Client ID (type: Web application)
-//   3. Add https://developers.google.com/oauthplayground as an authorized redirect URI
-//   4. Go to https://developers.google.com/oauthplayground
-//   5. Click the gear icon → check "Use your own OAuth credentials" → paste Client ID + Secret
-//   6. In Step 1, select: Gmail API v1 → https://www.googleapis.com/auth/gmail.readonly
-//   7. Click Authorize → Exchange code for tokens
-//   8. Copy the Refresh Token → paste into Vercel as GMAIL_REFRESH_TOKEN
-//
-// The refresh token never expires unless you revoke it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Keywords that suggest the email needs action from you
 const ACTION_PHRASES = [
   'please review', 'can you', 'could you', 'would you',
   'action required', 'action needed', 'your input', 'your approval',
@@ -50,8 +22,22 @@ function detectActionReason(subject, snippet) {
   return null;
 }
 
+// Safe fetch → always returns parsed JSON or throws a descriptive error
+async function safeFetchJson(url, options) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  if (!text || text.trim() === '') {
+    throw new Error(`Empty response from ${url} (status ${res.status})`);
+  }
+  try {
+    return { ok: res.ok, status: res.status, data: JSON.parse(text) };
+  } catch {
+    throw new Error(`Non-JSON response from ${url} (status ${res.status}): ${text.slice(0, 200)}`);
+  }
+}
+
 async function getAccessToken(clientId, clientSecret, refreshToken) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
+  const { ok, data } = await safeFetchJson('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -61,8 +47,7 @@ async function getAccessToken(clientId, clientSecret, refreshToken) {
       grant_type:    'refresh_token',
     }),
   });
-  const data = await res.json();
-  if (!data.access_token) {
+  if (!ok || !data.access_token) {
     throw new Error(`Token exchange failed: ${data.error} — ${data.error_description}`);
   }
   return data.access_token;
@@ -84,9 +69,31 @@ module.exports = async function handler(req, res) {
 
   const { op = 'action_items' } = req.query;
 
+  // ── debug op: test token exchange only ──────────────────────────────────────
+  // Visit /api/gmail?op=debug to verify credentials without fetching emails
+  if (op === 'debug') {
+    try {
+      const accessToken = await getAccessToken(clientId, clientSecret, refreshToken);
+      // Hit the profile endpoint — minimal, fast, no email data
+      const { ok, status, data } = await safeFetchJson(
+        'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!ok) return res.status(500).json({ error: 'Profile fetch failed', status, detail: data });
+      return res.status(200).json({
+        ok: true,
+        email: data.emailAddress,
+        messagesTotal: data.messagesTotal,
+        threadsTotal: data.threadsTotal,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: 'Debug failed', detail: e.message });
+    }
+  }
+
+  // ── main op: action_items ───────────────────────────────────────────────────
   if (op === 'action_items') {
     try {
-      // Step 1: exchange refresh token for a fresh short-lived access token
       const accessToken = await getAccessToken(clientId, clientSecret, refreshToken);
 
       const authHeaders = {
@@ -94,12 +101,9 @@ module.exports = async function handler(req, res) {
         'Content-Type': 'application/json',
       };
 
-      // Step 2: search for unread emails, excluding promotions/social,
-      // from the last 14 days — personal inbox focus
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - 14);
       const after = `${cutoffDate.getFullYear()}/${String(cutoffDate.getMonth() + 1).padStart(2, '0')}/${String(cutoffDate.getDate()).padStart(2, '0')}`;
-
       const query = `is:unread -category:promotions -category:social -category:updates after:${after}`;
 
       const listParams = new URLSearchParams({
@@ -108,45 +112,41 @@ module.exports = async function handler(req, res) {
         fields:     'messages(id,threadId)',
       });
 
-      const listRes = await fetch(
+      const { ok: listOk, data: listData } = await safeFetchJson(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams}`,
         { headers: authHeaders }
       );
-      const listData = await listRes.json();
 
-      if (!listRes.ok) {
+      if (!listOk) {
         return res.status(500).json({ error: 'Gmail list failed', detail: listData.error?.message });
       }
 
       const messageIds = (listData.messages || []).map(m => m.id);
 
       if (messageIds.length === 0) {
-        return res.status(200).json({ emails: [], totalUnread: 0 });
+        return res.status(200).json({ emails: [], totalUnread: 0, actionedCount: 0 });
       }
 
-      // Step 3: fetch metadata for each message in parallel (subject, from, snippet, date)
-      const metaFetches = messageIds.map(id =>
-        fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
-          { headers: authHeaders }
-        ).then(r => r.json())
+      // Fetch metadata safely — skip any messages that fail rather than crashing
+      const metaResults = await Promise.allSettled(
+        messageIds.map(id =>
+          safeFetchJson(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+            { headers: authHeaders }
+          )
+        )
       );
 
-      const messages = await Promise.all(metaFetches);
-
-      // Step 4: parse and score each message
-      const emails = messages
+      const emails = metaResults
+        .filter(r => r.status === 'fulfilled' && r.value.ok)
+        .map(r => r.value.data)
         .map(msg => {
           const headers  = msg.payload?.headers || [];
           const subject  = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
           const from     = headers.find(h => h.name === 'From')?.value    || 'Unknown';
           const dateHdr  = headers.find(h => h.name === 'Date')?.value    || '';
           const snippet  = msg.snippet || '';
-
-          // Friendly sender name: strip the email address if a name is present
-          // e.g. "John Smith <john@example.com>" → "John Smith"
           const fromName = from.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || from;
-
           const flagReason = detectActionReason(subject, snippet);
 
           return {
@@ -160,12 +160,11 @@ module.exports = async function handler(req, res) {
             link:       `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
           };
         })
-        // Surface actioned emails first, then the rest chronologically
         .sort((a, b) => (b.isActioned ? 1 : 0) - (a.isActioned ? 1 : 0));
 
       return res.status(200).json({
         emails,
-        totalUnread: emails.length,
+        totalUnread:   emails.length,
         actionedCount: emails.filter(e => e.isActioned).length,
       });
     } catch (e) {
