@@ -3,6 +3,7 @@ import {
   completeAsanaTask, reopenAsanaTask,
   fetchMyJiraTasks, fetchMyAsanaTasks,
   fetchMySlackMentions,
+  fetchMyGmailActionItems,
   fetchTodos, addTodoAPI, toggleTodoAPI, deleteTodoAPI,
 } from './api.js';
 
@@ -193,7 +194,6 @@ const AsanaRow = ({ task, checked, syncStatus, onToggle }) => (
 );
 
 const SlackMentionRow = ({ mention }) => {
-  // Strip <@UID> tokens from displayed text for readability
   const cleanText = mention.text.replace(/<@[A-Z0-9]+>/g, '@…').replace(/<[^>]+>/g, '').trim();
   const time = new Date(parseFloat(mention.ts) * 1000).toLocaleTimeString('en-US', {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -218,6 +218,38 @@ const SlackMentionRow = ({ mention }) => {
     </div>
   );
 };
+
+const GmailRow = ({ email }) => (
+  <div style={{
+    display: 'flex', flexDirection: 'column', gap: '4px', padding: '8px 10px',
+    borderRadius: '8px', marginBottom: '4px',
+    background: email.isActioned ? '#fffbeb' : '#fafafa',
+    border: email.isActioned ? '1px solid #fde68a' : '1px solid #f1f5f9',
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: '11px', fontWeight: 700, color: '#ea4335' }}>{email.from}</span>
+      {email.isActioned && (
+        <span style={{
+          fontSize: '10px', fontWeight: 700, color: '#92400e',
+          background: '#fef3c7', border: '1px solid #fde68a',
+          borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase',
+        }}>
+          ⚡ {email.flagReason}
+        </span>
+      )}
+    </div>
+    <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#334155', lineHeight: '1.3' }}>
+      {email.subject}
+    </p>
+    <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
+      {email.snippet.length > 160 ? email.snippet.slice(0, 160) + '…' : email.snippet}
+    </p>
+    <a href={email.link} target="_blank" rel="noreferrer"
+      style={{ fontSize: '11px', color: '#ea4335', textDecoration: 'none', alignSelf: 'flex-start', marginTop: '2px' }}>
+      Open in Gmail →
+    </a>
+  </div>
+);
 
 const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px',
@@ -408,6 +440,21 @@ export default function DailyCommandCenter() {
       .catch(() => { setSlackLoading(false); setSlackError(true); });
   }, []);
 
+  // ── Live Gmail ────────────────────────────────────────────────────────────
+  const [gmailData, setGmailData]     = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
+  const [gmailLoading, setGmailLoading] = useState(true);
+  const [gmailError, setGmailError]   = useState(false);
+
+  useEffect(() => {
+    fetchMyGmailActionItems()
+      .then(data => {
+        setGmailData(data);
+        setGmailError(data.error);
+        setGmailLoading(false);
+      })
+      .catch(() => { setGmailLoading(false); setGmailError(true); });
+  }, []);
+
   // ── Derived counts ────────────────────────────────────────────────────────
   const criticalCount  = jiraTasks.filter(t => t.priority === 'Critical').length;
   const reviewCount    = jiraTasks.filter(t =>
@@ -432,8 +479,8 @@ export default function DailyCommandCenter() {
     { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
-  const isLoading     = jiraLoading || asanaLoading || todosLoading || slackLoading;
-  const isError       = jiraError || asanaError || slackError;
+  const isLoading     = jiraLoading || asanaLoading || todosLoading || slackLoading || gmailLoading;
+  const isError       = jiraError || asanaError || slackError || gmailError;
   const syncDotColor  = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncTextColor = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
   const syncBorder    = isLoading ? 'rgba(245,158,11,0.3)' : isError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
@@ -617,17 +664,41 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Gmail */}
+            {/* Gmail — live */}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📧 Gmail</h2>
+                {!gmailLoading && !gmailError && (
+                  <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>
+                    {gmailData.totalUnread} unread · {gmailData.actionedCount} need action · last 14 days
+                  </span>
+                )}
               </div>
-              <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
-                <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ No action items surfaced</p>
-                <p style={{ color: '#15803d', fontSize: '12px', margin: '4px 0 0' }}>Unread mail is mostly automated notifications and alerts. No messages with action language detected.</p>
-              </div>
+              {gmailLoading ? <LoadingRows message="Loading Gmail…" color="#ea4335" /> :
+               gmailError ? (
+                 <div style={{ background: '#fef2f2', borderRadius: '10px', padding: '14px', border: '1px solid #fecaca' }}>
+                   <p style={{ color: '#991b1b', fontSize: '13px', margin: 0, fontWeight: 600 }}>✗ Could not load Gmail</p>
+                   <p style={{ color: '#b91c1c', fontSize: '12px', margin: '4px 0 0' }}>Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Vercel environment variables.</p>
+                 </div>
+               ) : gmailData.emails.length === 0 ? (
+                 <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
+                   <p style={{ color: '#166534', fontSize: '13px', margin: 0, fontWeight: 600 }}>✓ Inbox clear — no unread personal emails in the last 14 days</p>
+                 </div>
+               ) : (
+                 <>
+                   {gmailData.actionedCount > 0 && (
+                     <div style={{ background: '#fffbeb', borderRadius: '8px', padding: '8px 12px',
+                       border: '1px solid #fde68a', marginBottom: '10px' }}>
+                       <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
+                         ⚡ {gmailData.actionedCount} email{gmailData.actionedCount !== 1 ? 's' : ''} need your attention — shown first
+                       </p>
+                     </div>
+                   )}
+                   {gmailData.emails.map(email => <GmailRow key={email.id} email={email} />)}
+                 </>
+               )}
             </div>
 
             {/* Slack — live */}

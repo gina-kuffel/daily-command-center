@@ -7,6 +7,7 @@
 //   /api/jira   — Jira Server/DC (tracker.nci.nih.gov)
 //   /api/asana  — Asana (app.asana.com)
 //   /api/slack  — Slack (slack.com)
+//   /api/gmail  — Gmail (personal inbox)
 //   /api/todos  — Personal To-Do store (Vercel KV)
 //
 // Create React App env vars in the browser must use REACT_APP_ prefix.
@@ -124,6 +125,28 @@ export async function fetchMySlackMentions() {
   } catch (e) {
     console.error('[Slack] Fetch error:', e);
     return [];
+  }
+}
+
+// ── GMAIL ─────────────────────────────────────────────────────────────────────
+
+export async function fetchMyGmailActionItems() {
+  try {
+    const res = await fetch('/api/gmail?op=action_items');
+    if (!res.ok) {
+      console.error('[Gmail] Proxy error:', res.status, await res.json().catch(() => ({})));
+      return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
+    }
+    const data = await res.json();
+    return {
+      emails:        data.emails        || [],
+      totalUnread:   data.totalUnread   || 0,
+      actionedCount: data.actionedCount || 0,
+      error:         false,
+    };
+  } catch (e) {
+    console.error('[Gmail] Fetch error:', e);
+    return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
   }
 }
 
