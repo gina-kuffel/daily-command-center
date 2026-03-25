@@ -38,35 +38,37 @@ const DEFAULT_GROCERIES = [
 ];
 
 // ─── Work To-Do API helpers ────────────────────────────────────────────────────
-// Mirrors personal todo API but hits /api/work-todos
+// Uses the same ?op= query-param convention as api/todos.js + api/work-todos.js
 async function fetchWorkTodos() {
   try {
-    const r = await fetch('/api/work-todos');
-    if (!r.ok) throw new Error('not ok');
+    const r = await fetch('/api/work-todos?op=list');
+    if (!r.ok) return { todos: [], kvMissing: r.status === 503 };
     return r.json();
   } catch { return { todos: [], kvMissing: true }; }
 }
 async function addWorkTodoAPI(payload) {
   try {
-    const r = await fetch('/api/work-todos', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    const r = await fetch('/api/work-todos?op=add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
-    return r.json();
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return { success: false, error: e.error || r.statusText }; }
+    const data = await r.json();
+    return { success: true, todo: data.todo };
   } catch (e) { return { success: false, error: e.message }; }
 }
 async function toggleWorkTodoAPI(id) {
   try {
-    const r = await fetch('/api/work-todos', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
-    });
-    return r.json();
+    const r = await fetch(`/api/work-todos?op=toggle&id=${encodeURIComponent(id)}`, { method: 'POST' });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); return { success: false, error: e.error || r.statusText }; }
+    const data = await r.json();
+    return { success: true, todo: data.todo };
   } catch (e) { return { success: false, error: e.message }; }
 }
 async function deleteWorkTodoAPI(id) {
   try {
-    await fetch('/api/work-todos', {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
-    });
+    await fetch(`/api/work-todos?op=delete&id=${encodeURIComponent(id)}`, { method: 'POST' });
     return { success: true };
   } catch { return { success: false }; }
 }
@@ -218,14 +220,11 @@ const LoadingRows = ({ message, color = '#f59e0b' }) => (
 );
 
 // ─── WorkTodoActionBar ────────────────────────────────────────────────────────
-// Shared action bar used at the bottom of Jira, Asana, and Slack rows.
-// Shows ➕ Work To-Do button; expands to AddTodoInline when active.
-const WorkTodoActionBar = ({ rowId, defaultName, source, addingWorkTodoFor, onOpen, onSave, onCancel, extraLeft }) => {
+const WorkTodoActionBar = ({ rowId, defaultName, source, addingWorkTodoFor, onOpen, onSave, onCancel }) => {
   const isOpen = addingWorkTodoFor === rowId;
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-        {extraLeft}
         {!isOpen && (
           <button onClick={() => onOpen(rowId)}
             style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', background: '#f0fdf4',
@@ -474,7 +473,6 @@ const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
 );
 
 // ─── TodoItem ─────────────────────────────────────────────────────────────────
-// accentColor: checkbox accent — violet for personal, emerald for work
 const TodoItem = ({ item, onToggle, onDelete, syncStatus, sourceConfig, accentColor = '#8b5cf6' }) => {
   const isOverdue = item.due && item.due < todayStr && !item.completed;
   const src = (sourceConfig || personalSourceConfig)[item.source] || (sourceConfig || personalSourceConfig).manual;
@@ -526,8 +524,8 @@ export default function DailyCommandCenter() {
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
   // ── Inline form state — personal (Gmail/Cal) & work (Jira/Asana/Slack) ────
-  const [addingTodoFor, setAddingTodoFor]           = useState(null); // personal
-  const [addingWorkTodoFor, setAddingWorkTodoFor]   = useState(null); // work
+  const [addingTodoFor, setAddingTodoFor]           = useState(null);
+  const [addingWorkTodoFor, setAddingWorkTodoFor]   = useState(null);
   const [dismissedGmailIds, setDismissedGmailIds]   = useState(new Set());
   const [dismissedCalIds, setDismissedCalIds]       = useState(new Set());
 
@@ -539,7 +537,6 @@ export default function DailyCommandCenter() {
   const handleDismissGmail = (emailId) =>
     setDismissedGmailIds(prev => new Set([...prev, emailId]));
 
-  // Save from Gmail / Calendar → Personal To-Do
   const handleSaveTodoFromCard = async (rowId, name, due, priority) => {
     if (!name) return;
     const isGmail = rowId.startsWith('gmail_');
@@ -555,7 +552,6 @@ export default function DailyCommandCenter() {
     else setTodos(p => p.filter(t => t.id !== optimistic.id));
   };
 
-  // Save from Jira / Asana / Slack → Work To-Do
   const handleSaveWorkTodoFromCard = async (rowId, name, due, priority, source) => {
     if (!name) return;
     setAddingWorkTodoFor(null);
@@ -714,9 +710,9 @@ export default function DailyCommandCenter() {
   ).length;
   const overdueCount   = asanaTasks.filter(t => t.overdue).length;
   const dueSoonCount   = asanaTasks.filter(t => !t.overdue && t.due && t.due <= endOfThisMonth).length;
-  const activeTodos       = todos.filter(t => !t.completed);
-  const completedTodos    = todos.filter(t => t.completed);
-  const activeWorkTodos   = workTodos.filter(t => !t.completed);
+  const activeTodos        = todos.filter(t => !t.completed);
+  const completedTodos     = todos.filter(t => t.completed);
+  const activeWorkTodos    = workTodos.filter(t => !t.completed);
   const completedWorkTodos = workTodos.filter(t => t.completed);
 
   const filteredJira = jiraTasks.filter(t => {
@@ -751,7 +747,7 @@ export default function DailyCommandCenter() {
     fontSize: '13px', outline: 'none', fontFamily: 'inherit', background: '#fff',
   };
 
-  // ── Shared Work To-Do panel (reused in Briefing + Work tab) ──────────────
+  // ── Shared Work To-Do panel ───────────────────────────────────────────────
   const WorkTodosPanel = ({ slim = false }) => (
     <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -866,7 +862,6 @@ export default function DailyCommandCenter() {
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-            {/* Critical Jira */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -888,7 +883,6 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Awaiting Review */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -909,7 +903,6 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Due This Month Asana */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -930,10 +923,8 @@ export default function DailyCommandCenter() {
               </div>
             </div>
 
-            {/* Work To-Do preview */}
             <WorkTodosPanel slim={true} />
 
-            {/* Personal To-Do preview */}
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1256,7 +1247,6 @@ export default function DailyCommandCenter() {
                 </div>
               )}
               <div style={{ padding: '12px 16px' }}>
-                {/* Add form */}
                 <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #bbf7d0' }}>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                     <input type="text" value={newWorkTodo} onChange={e => setNewWorkTodo(e.target.value)}
