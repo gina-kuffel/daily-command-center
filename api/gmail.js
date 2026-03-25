@@ -75,6 +75,9 @@ const BLOCKLIST = [
   'uber eats',
   'doordash',
   'grubhub',
+  // Intercom / building access notifications
+  'butterfly mx',
+  'butterflymx',
   // Specific senders
   'tracy sorge',
   'tracysorge',
@@ -249,12 +252,10 @@ module.exports = async function handler(req, res) {
             flagReason,
             isActioned: !!flagReason,
             link:       `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
-            _from_raw:  from, // kept for blocklist check below
+            _from_raw:  from,
           };
         })
-        // Apply blocklist — drop emails matching blocked senders/subjects entirely
         .filter(email => !isBlocked(email.subject, email._from_raw))
-        // Clean up internal field before returning
         .map(({ _from_raw, ...rest }) => rest)
         .sort((a, b) => (b.isActioned ? 1 : 0) - (a.isActioned ? 1 : 0));
 
