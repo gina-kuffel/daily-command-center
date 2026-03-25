@@ -8,7 +8,16 @@
 // work calendar (gina.kuffel@nih.gov / Outlook). Work meetings live in NIH
 // Outlook/Exchange, which requires a separate Microsoft Graph integration.
 // Events surfaced here are personal appointments, reminders, family events, etc.
+//
+// Calendars fetched:
+//   1. primary                              — gina.kuffel@gmail.com
+//   2. en.usa#holiday@group.v.calendar.google.com — Holidays in United States
 // ─────────────────────────────────────────────────────────────────────────────
+
+const CALENDAR_IDS = [
+  'primary',
+  'en.usa#holiday@group.v.calendar.google.com',
+];
 
 // ── Safe fetch ────────────────────────────────────────────────────────────────
 async function safeFetchJson(url, options) {
@@ -45,7 +54,6 @@ async function getAccessToken(clientId, clientSecret, refreshToken) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Build ISO 8601 timestamps for start-of-today and end-of-tomorrow (local time)
 function getTodayTomorrowRange() {
   const now = new Date();
 
@@ -53,26 +61,24 @@ function getTodayTomorrowRange() {
   start.setHours(0, 0, 0, 0);
 
   const end = new Date(now);
-  end.setDate(end.getDate() + 2); // exclusive upper bound = start of day after tomorrow
+  end.setDate(end.getDate() + 2); // exclusive — start of day after tomorrow
   end.setHours(0, 0, 0, 0);
 
   return { timeMin: start.toISOString(), timeMax: end.toISOString() };
 }
 
-// Summarise an event into a clean object for the frontend
-function formatEvent(event) {
+function formatEvent(event, calendarId) {
   const summary   = event.summary || '(No title)';
   const location  = event.location || null;
   const htmlLink  = event.htmlLink || null;
   const attendees = (event.attendees || []).map(a => a.displayName || a.email);
   const organizer = event.organizer?.displayName || event.organizer?.email || null;
+  const isHoliday = calendarId.includes('holiday');
 
-  // All-day events have `date`; timed events have `dateTime`
   const startRaw = event.start?.dateTime || event.start?.date || null;
   const endRaw   = event.end?.dateTime   || event.end?.date   || null;
   const allDay   = !event.start?.dateTime;
 
-  // Human-readable time
   let timeLabel = 'All day';
   if (!allDay && startRaw) {
     const s = new Date(startRaw);
@@ -81,9 +87,8 @@ function formatEvent(event) {
     timeLabel = `${fmt(s)} – ${fmt(e)}`;
   }
 
-  // Flag events that likely need a reminder or action.
-  // These are personal-life keywords — NOT work meeting keywords.
-  // (Work calendar is NIH Outlook — separate integration.)
+  // Personal-life prep keywords — NOT work meeting keywords
+  // (Work calendar is NIH Outlook — separate integration)
   const prepKeywords = [
     // Medical & health
     'appointment', 'doctor', 'dentist', 'therapy', 'checkup', 'check-up',
@@ -99,14 +104,14 @@ function formatEvent(event) {
     'birthday', 'anniversary', 'dinner', 'party', 'event', 'wedding',
     'shower', 'graduation',
     // Reminders
-    'remind', 'reminder', 'don\'t forget', 'pick up',
+    'remind', 'reminder', "don't forget", 'pick up',
   ];
 
   const lowerSummary = summary.toLowerCase();
-  const needsPrep = prepKeywords.some(kw => lowerSummary.includes(kw));
+  const needsPrep = !isHoliday && prepKeywords.some(kw => lowerSummary.includes(kw));
 
   return {
-    id:        event.id,
+    id:         event.id,
     summary,
     timeLabel,
     allDay,
@@ -117,12 +122,39 @@ function formatEvent(event) {
     attendees,
     htmlLink,
     needsPrep,
+    isHoliday,
+    calendarId,
   };
+}
+
+// Fetch events from a single calendar
+async function fetchCalendarEvents(calendarId, accessToken, timeMin, timeMax) {
+  const encodedId = encodeURIComponent(calendarId);
+  const params = new URLSearchParams({
+    timeMin,
+    timeMax,
+    singleEvents: 'true',
+    orderBy:      'startTime',
+    maxResults:   50,
+    fields:       'items(id,summary,start,end,location,htmlLink,attendees,organizer)',
+  });
+
+  const { ok, status, data } = await safeFetchJson(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodedId}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!ok) {
+    // Non-fatal — log and return empty so one bad calendar doesn't break the whole response
+    console.error(`Calendar fetch failed for ${calendarId}: ${status}`, data.error?.message);
+    return [];
+  }
+
+  return (data.items || []).map(e => formatEvent(e, calendarId));
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
-  // CORS — allow the Vercel frontend to call this
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -163,28 +195,16 @@ module.exports = async function handler(req, res) {
       const accessToken = await getAccessToken(clientId, clientSecret, refreshToken);
       const { timeMin, timeMax } = getTodayTomorrowRange();
 
-      const params = new URLSearchParams({
-        calendarId:   'primary',
-        timeMin,
-        timeMax,
-        singleEvents: 'true',
-        orderBy:      'startTime',
-        maxResults:   50,
-        fields:       'items(id,summary,start,end,location,htmlLink,attendees,organizer)',
-      });
-
-      const { ok, status, data } = await safeFetchJson(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+      // Fetch all calendars in parallel — one bad calendar won't break the rest
+      const results = await Promise.all(
+        CALENDAR_IDS.map(id => fetchCalendarEvents(id, accessToken, timeMin, timeMax))
       );
 
-      if (!ok) {
-        return res.status(500).json({ error: 'Calendar fetch failed', status, detail: data.error?.message });
-      }
+      // Merge and sort by start time
+      const allEvents = results
+        .flat()
+        .sort((a, b) => (a.startRaw || '').localeCompare(b.startRaw || ''));
 
-      const allEvents = (data.items || []).map(formatEvent);
-
-      // Split into today / tomorrow buckets
       const todayStr    = new Date().toISOString().slice(0, 10);
       const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
@@ -193,8 +213,8 @@ module.exports = async function handler(req, res) {
       const prepItems      = allEvents.filter(e => e.needsPrep);
 
       return res.status(200).json({
-        today:    todayEvents,
-        tomorrow: tomorrowEvents,
+        today:      todayEvents,
+        tomorrow:   tomorrowEvents,
         prepItems,
         totalCount: allEvents.length,
         note: 'Personal Google Calendar only. NIH work calendar (Outlook) is a separate integration.',
