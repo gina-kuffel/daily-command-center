@@ -57,9 +57,33 @@ const ACTION_SENDER_DOMAINS = [
   'att.com', 'verizon.com', 'comcast.com', 'xfinity.com', 'spectrum.com',
   // Healthcare
   'mychart.com', 'epic.com', 'walgreens.com', 'cvs.com', 'riteaid.com',
-  // Subscriptions that auto-renew (spotify removed — too noisy)
+  // Subscriptions that auto-renew
   'netflix.com', 'apple.com', 'google.com', 'amazon.com',
 ];
+
+// ── Blocklist — senders/subjects that are NEVER action items ─────────────────
+// Matched against the raw From header and Subject line (case-insensitive).
+// Add any sender name, email address, domain, or subject keyword here.
+const BLOCKLIST = [
+  // Real estate noise
+  'redfin',
+  // Newsletters & digests
+  'daily digest',
+  'off the dribble',
+  // Food delivery
+  'ubereats',
+  'uber eats',
+  'doordash',
+  'grubhub',
+  // Specific senders
+  'tracy sorge',
+  'tracysorge',
+];
+
+function isBlocked(subject, fromRaw) {
+  const haystack = `${subject} ${fromRaw}`.toLowerCase();
+  return BLOCKLIST.some(term => haystack.includes(term));
+}
 
 // ── Sender domain check ───────────────────────────────────────────────────────
 function getSenderDomainFlag(fromRaw) {
@@ -225,8 +249,13 @@ module.exports = async function handler(req, res) {
             flagReason,
             isActioned: !!flagReason,
             link:       `https://mail.google.com/mail/u/0/#inbox/${msg.id}`,
+            _from_raw:  from, // kept for blocklist check below
           };
         })
+        // Apply blocklist — drop emails matching blocked senders/subjects entirely
+        .filter(email => !isBlocked(email.subject, email._from_raw))
+        // Clean up internal field before returning
+        .map(({ _from_raw, ...rest }) => rest)
         .sort((a, b) => (b.isActioned ? 1 : 0) - (a.isActioned ? 1 : 0));
 
       return res.status(200).json({
