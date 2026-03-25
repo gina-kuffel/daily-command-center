@@ -22,9 +22,13 @@ function detectActionReason(subject, snippet) {
   return null;
 }
 
-// Safe fetch → always returns parsed JSON or throws a descriptive error
+// Safe fetch → handles empty bodies (204 No Content) and non-JSON gracefully
 async function safeFetchJson(url, options) {
   const res = await fetch(url, options);
+  // 204 = No Content — valid empty response, not an error
+  if (res.status === 204) {
+    return { ok: true, status: 204, data: {} };
+  }
   const text = await res.text();
   if (!text || text.trim() === '') {
     throw new Error(`Empty response from ${url} (status ${res.status})`);
@@ -69,12 +73,10 @@ module.exports = async function handler(req, res) {
 
   const { op = 'action_items' } = req.query;
 
-  // ── debug op: test token exchange only ──────────────────────────────────────
-  // Visit /api/gmail?op=debug to verify credentials without fetching emails
+  // ── debug op ────────────────────────────────────────────────────────────────
   if (op === 'debug') {
     try {
       const accessToken = await getAccessToken(clientId, clientSecret, refreshToken);
-      // Hit the profile endpoint — minimal, fast, no email data
       const { ok, status, data } = await safeFetchJson(
         'https://gmail.googleapis.com/gmail/v1/users/me/profile',
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -91,7 +93,7 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // ── main op: action_items ───────────────────────────────────────────────────
+  // ── action_items op ─────────────────────────────────────────────────────────
   if (op === 'action_items') {
     try {
       const accessToken = await getAccessToken(clientId, clientSecret, refreshToken);
@@ -112,13 +114,15 @@ module.exports = async function handler(req, res) {
         fields:     'messages(id,threadId)',
       });
 
-      const { ok: listOk, data: listData } = await safeFetchJson(
+      const { ok: listOk, status: listStatus, data: listData } = await safeFetchJson(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams}`,
         { headers: authHeaders }
       );
 
-      if (!listOk) {
-        return res.status(500).json({ error: 'Gmail list failed', detail: listData.error?.message });
+      // 204 or empty messages array = clean inbox for this filter
+      if (listStatus === 204 || !listOk) {
+        if (!listOk) return res.status(500).json({ error: 'Gmail list failed', detail: listData.error?.message });
+        return res.status(200).json({ emails: [], totalUnread: 0, actionedCount: 0 });
       }
 
       const messageIds = (listData.messages || []).map(m => m.id);
@@ -127,7 +131,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ emails: [], totalUnread: 0, actionedCount: 0 });
       }
 
-      // Fetch metadata safely — skip any messages that fail rather than crashing
+      // Fetch metadata — skip any that fail rather than crashing the whole request
       const metaResults = await Promise.allSettled(
         messageIds.map(id =>
           safeFetchJson(
@@ -138,15 +142,15 @@ module.exports = async function handler(req, res) {
       );
 
       const emails = metaResults
-        .filter(r => r.status === 'fulfilled' && r.value.ok)
+        .filter(r => r.status === 'fulfilled' && r.value.ok && r.value.status !== 204)
         .map(r => r.value.data)
         .map(msg => {
-          const headers  = msg.payload?.headers || [];
-          const subject  = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
-          const from     = headers.find(h => h.name === 'From')?.value    || 'Unknown';
-          const dateHdr  = headers.find(h => h.name === 'Date')?.value    || '';
-          const snippet  = msg.snippet || '';
-          const fromName = from.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || from;
+          const headers   = msg.payload?.headers || [];
+          const subject   = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+          const from      = headers.find(h => h.name === 'From')?.value    || 'Unknown';
+          const dateHdr   = headers.find(h => h.name === 'Date')?.value    || '';
+          const snippet   = msg.snippet || '';
+          const fromName  = from.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || from;
           const flagReason = detectActionReason(subject, snippet);
 
           return {
