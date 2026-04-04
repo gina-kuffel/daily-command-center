@@ -8,6 +8,10 @@ import {
   fetchTodos, addTodoAPI, toggleTodoAPI, deleteTodoAPI,
 } from './api.js';
 
+// ── helpers ────────────────────────────────────────────────────────────────────
+// Ensure a value is always a plain array — guards against API/localStorage surprises
+const sa = (v) => Array.isArray(v) ? v : [];
+
 const today    = new Date();
 const todayStr = today.toISOString().slice(0, 10);
 const hour     = today.getHours();
@@ -21,7 +25,14 @@ const thisMonthLabel = today.toLocaleDateString('en-US', { month: 'long', year: 
 const nextMonthLabel = new Date(today.getFullYear(), today.getMonth() + 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 function lsGet(key, fallback) {
-  try { const r = localStorage.getItem(key); return r !== null ? JSON.parse(r) : fallback; } catch { return fallback; }
+  try {
+    const r = localStorage.getItem(key);
+    if (r === null) return fallback;
+    const parsed = JSON.parse(r);
+    // Grocery list must be an array — if localStorage has corrupt data return the fallback
+    if (key.includes('groceries') && !Array.isArray(parsed)) return fallback;
+    return parsed;
+  } catch { return fallback; }
 }
 function lsSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota */ }
@@ -32,11 +43,13 @@ const DEFAULT_GROCERIES = [
   { id: 4, name: 'Chicken breast' }, { id: 5, name: 'Greek yogurt' },
 ];
 
+// ── Work To-Do API helpers ────────────────────────────────────────────────────
 async function fetchWorkTodos() {
   try {
     const r = await fetch('/api/work-todos?op=list');
     if (!r.ok) return { todos: [], kvMissing: r.status === 503 };
-    return r.json();
+    const d = await r.json();
+    return { todos: sa(d.todos), kvMissing: false };
   } catch { return { todos: [], kvMissing: true }; }
 }
 async function addWorkTodoAPI(payload) {
@@ -57,15 +70,16 @@ async function deleteWorkTodoAPI(id) {
   try { await fetch(`/api/work-todos?op=delete&id=${encodeURIComponent(id)}`, { method: 'POST' }); return { success: true }; }
   catch { return { success: false }; }
 }
-async function seedTodosFromGmail(actionedEmails) {
-  if (!actionedEmails || actionedEmails.length === 0) return { added: 0, skipped: 0 };
+async function seedTodosFromGmail(emails) {
+  if (!emails || emails.length === 0) return { added: 0, skipped: 0 };
   try {
-    const r = await fetch('/api/todos?op=seed_from_gmail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails: actionedEmails }) });
+    const r = await fetch('/api/todos?op=seed_from_gmail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails }) });
     if (!r.ok) return { added: 0, skipped: 0 };
     return r.json();
   } catch { return { added: 0, skipped: 0 }; }
 }
 
+// ── Style configs ────────────────────────────────────────────────────────────
 const priorityConfig = {
   Critical: { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
   Major:    { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
@@ -98,13 +112,12 @@ const workSourceConfig = {
   manual: { emoji: '✏️', label: 'Manual', color: '#64748b' },
 };
 
+// ── Small components ──────────────────────────────────────────────────────────────
 const GBadge = ({ size = 32 }) => (
   <div style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
-    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
     boxShadow: '0 0 0 2px rgba(255,255,255,0.25), 0 2px 8px rgba(0,0,0,0.2)' }}>
-    <span style={{ color: '#fff', fontWeight: 700, fontSize: size >= 48 ? '22px' : size >= 32 ? '15px' : '11px',
-      fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
+    <span style={{ color: '#fff', fontWeight: 700, fontSize: size >= 48 ? '22px' : size >= 32 ? '15px' : '11px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
   </div>
 );
 
@@ -118,8 +131,7 @@ const AddTodoInline = ({ defaultName, label = 'Personal To-Do', accentColor = '#
     <div style={{ margin: '6px 0 4px 0', padding: '10px 12px', borderRadius: '8px',
       background: isWork ? '#f0fdf4' : '#f0f9ff', border: isWork ? '1px solid #86efac' : '1px solid #bae6fd' }}>
       <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 700, color: isWork ? '#15803d' : '#0369a1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>➕ Add to {label}</p>
-      <input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus
-        style={{ ...ib, width: '100%', boxSizing: 'border-box', marginBottom: '6px' }} />
+      <input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus style={{ ...ib, width: '100%', boxSizing: 'border-box', marginBottom: '6px' }} />
       <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
         <input type="date" value={due} onChange={e => setDue(e.target.value)} style={{ ...ib, flex: 1, color: due ? '#334155' : '#94a3b8' }} />
         <select value={priority} onChange={e => setPriority(e.target.value)} style={{ ...ib, flex: 1, color: priority ? '#334155' : '#94a3b8' }}>
@@ -159,8 +171,7 @@ const Section = ({ title, icon, children, defaultOpen = false, count }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ borderBottom: '1px solid #f1f5f9' }}>
-      <button onClick={() => setOpen(!open)} style={{ width: '100%', display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', padding: '12px 4px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => setOpen(!open)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
         <span style={{ fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
           <span style={{ fontSize: '14px' }}>{icon}</span>{title}
           {count !== undefined && <span style={{ background: '#f1f5f9', color: '#64748b', borderRadius: '10px', padding: '1px 7px', fontSize: '11px', fontWeight: 600 }}>{count}</span>}
@@ -181,17 +192,9 @@ const WorkTodoActionBar = ({ rowId, defaultName, source, addingWorkTodoFor, onOp
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-        {!isOpen && (
-          <button onClick={() => onOpen(rowId)} style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', background: '#f0fdf4',
-            border: '1px solid #86efac', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', marginLeft: 'auto' }}>
-            ➕ Work To-Do
-          </button>
-        )}
+        {!isOpen && <button onClick={() => onOpen(rowId)} style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', marginLeft: 'auto' }}>➕ Work To-Do</button>}
       </div>
-      {isOpen && (
-        <AddTodoInline defaultName={defaultName} label="Work To-Do" accentColor="#10b981"
-          onSave={(name, due, priority) => onSave(rowId, name, due, priority, source)} onCancel={onCancel} />
-      )}
+      {isOpen && <AddTodoInline defaultName={defaultName} label="Work To-Do" accentColor="#10b981" onSave={(n, d, p) => onSave(rowId, n, d, p, source)} onCancel={onCancel} />}
     </>
   );
 };
@@ -200,8 +203,7 @@ const JiraRow = ({ task, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCa
   const rowId = `jira_${task.key}`;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', borderRadius: '8px', marginBottom: '4px',
-      background: task.priority === 'Critical' ? '#fff5f5' : '#fafafa',
-      border: task.priority === 'Critical' ? '1px solid #fecaca' : '1px solid #f1f5f9' }}>
+      background: task.priority === 'Critical' ? '#fff5f5' : '#fafafa', border: task.priority === 'Critical' ? '1px solid #fecaca' : '1px solid #f1f5f9' }}>
       <ProductDot product={task.product} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
@@ -211,8 +213,7 @@ const JiraRow = ({ task, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCa
           {task.label && <span style={{ fontSize: '10px', color: '#94a3b8', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '1px 6px' }}>{task.label}</span>}
         </div>
         <p style={{ margin: 0, fontSize: '12px', color: '#334155', lineHeight: '1.4' }}>{task.summary}</p>
-        <WorkTodoActionBar rowId={rowId} defaultName={`Follow up: [${task.key}] ${task.summary}`} source="jira"
-          addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
+        <WorkTodoActionBar rowId={rowId} defaultName={`Follow up: [${task.key}] ${task.summary}`} source="jira" addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
       </div>
     </div>
   );
@@ -224,8 +225,7 @@ const AsanaRow = ({ task, checked, syncStatus, onToggle, addingWorkTodoFor, onOp
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', borderRadius: '8px', marginBottom: '4px',
       background: task.overdue ? '#fff5f5' : '#fafafa', border: task.overdue ? '1px solid #fecaca' : '1px solid #f1f5f9',
       opacity: checked ? 0.55 : 1, transition: 'opacity 0.2s' }}>
-      <input type="checkbox" checked={checked} onChange={() => onToggle(task.gid, task.name)} disabled={syncStatus === 'syncing'}
-        style={{ marginTop: '2px', cursor: 'pointer', accentColor: '#10b981' }} />
+      <input type="checkbox" checked={checked} onChange={() => onToggle(task.gid, task.name)} disabled={syncStatus === 'syncing'} style={{ marginTop: '2px', cursor: 'pointer', accentColor: '#10b981' }} />
       <ProductDot product={task.product} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -233,8 +233,7 @@ const AsanaRow = ({ task, checked, syncStatus, onToggle, addingWorkTodoFor, onOp
           <SyncBadge status={syncStatus} />
         </div>
         {task.due && <span style={{ fontSize: '10px', marginTop: '2px', display: 'block', color: task.overdue ? '#dc2626' : '#64748b', fontWeight: task.overdue ? 700 : 400 }}>{task.overdue ? '⚠ OVERDUE — ' : 'Due '}{task.due}</span>}
-        <WorkTodoActionBar rowId={rowId} defaultName={`Action: ${task.name}`} source="asana"
-          addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
+        <WorkTodoActionBar rowId={rowId} defaultName={`Action: ${task.name}`} source="asana" addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
       </div>
     </div>
   );
@@ -254,8 +253,7 @@ const SlackMentionRow = ({ mention, addingWorkTodoFor, onOpenWorkTodo, onSaveWor
       </div>
       <p style={{ margin: 0, fontSize: '12px', color: '#334155', lineHeight: '1.5' }}>{cleanText.length > 200 ? cleanText.slice(0, 200) + '…' : cleanText}</p>
       {mention.permalink && <a href={mention.permalink} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', textDecoration: 'none', alignSelf: 'flex-start' }}>Open in Slack →</a>}
-      <WorkTodoActionBar rowId={rowId} defaultName={`Follow up on Slack (#${mention.channel}): ${snippet}`} source="slack"
-        addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
+      <WorkTodoActionBar rowId={rowId} defaultName={`Follow up on Slack (#${mention.channel}): ${snippet}`} source="slack" addingWorkTodoFor={addingWorkTodoFor} onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
     </div>
   );
 };
@@ -271,7 +269,7 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo, 
         {email.isActioned && <span style={{ fontSize: '10px', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '4px', padding: '1px 6px', textTransform: 'uppercase' }}>⚡ {email.flagReason}</span>}
       </div>
       <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#334155', lineHeight: '1.3' }}>{email.subject}</p>
-      <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>{email.snippet.length > 160 ? email.snippet.slice(0, 160) + '…' : email.snippet}</p>
+      <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>{(email.snippet || '').slice(0, 160)}{email.snippet && email.snippet.length > 160 ? '…' : ''}</p>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
         {email.link && <a href={email.link} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#ea4335', textDecoration: 'none' }}>Open in Gmail →</a>}
         {!isOpen && (
@@ -281,7 +279,7 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo, 
           </>
         )}
       </div>
-      {isOpen && <AddTodoInline defaultName={`Reply to: ${email.subject}`} onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)} onCancel={onCancelTodo} />}
+      {isOpen && <AddTodoInline defaultName={`Reply to: ${email.subject}`} onSave={(n, d, p) => onSaveTodo(rowId, n, d, p)} onCancel={onCancelTodo} />}
     </div>
   );
 };
@@ -299,12 +297,12 @@ const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCanc
       </div>
       <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#1e293b', lineHeight: '1.3' }}>{event.summary}</p>
       {event.location && <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>📍 {event.location}</p>}
-      {event.attendees && event.attendees.length > 0 && <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>👥 {event.attendees.slice(0, 4).join(', ')}{event.attendees.length > 4 ? ` +${event.attendees.length - 4} more` : ''}</p>}
+      {sa(event.attendees).length > 0 && <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>👥 {sa(event.attendees).slice(0, 4).join(', ')}{sa(event.attendees).length > 4 ? ` +${sa(event.attendees).length - 4} more` : ''}</p>}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
         {event.htmlLink && <a href={event.htmlLink} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#0369a1', textDecoration: 'none' }}>Open in Google Calendar →</a>}
         {!isOpen && <button onClick={() => onOpenTodo(rowId)} style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', marginLeft: 'auto' }}>➕ To-Do</button>}
       </div>
-      {isOpen && <AddTodoInline defaultName={`Prep for: ${event.summary}`} onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)} onCancel={onCancelTodo} />}
+      {isOpen && <AddTodoInline defaultName={`Prep for: ${event.summary}`} onSave={(n, d, p) => onSaveTodo(rowId, n, d, p)} onCancel={onCancelTodo} />}
     </div>
   );
 };
@@ -340,7 +338,7 @@ const TodoItem = ({ item, onToggle, onDelete, syncStatus, sourceConfig, accentCo
   );
 };
 
-// WorkTodosPanel is defined OUTSIDE DailyCommandCenter — props-driven, no closures over parent state
+// WorkTodosPanel is defined OUTSIDE DailyCommandCenter — prevents React remount crash
 const WorkTodosPanel = ({ slim, activeWorkTodos, workTodosLoading, workTodosError, workTodoSyncStatus, onToggle, onDelete }) => (
   <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
     <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -350,19 +348,16 @@ const WorkTodosPanel = ({ slim, activeWorkTodos, workTodosLoading, workTodosErro
     <div style={{ padding: '0 16px 16px' }}>
       {workTodosLoading ? <LoadingRows message="Loading work to-dos…" color="#10b981" /> :
        workTodosError === 'kv_missing' ? <LoadingRows message="⚠ Vercel KV not set up yet." color="#f59e0b" /> :
-       activeWorkTodos.length === 0 ? <LoadingRows message="No work to-dos — use ➕ Work To-Do on Jira, Asana, or Slack items ✓" color="#15803d" /> : (
-         (slim ? activeWorkTodos.slice(0, 5) : activeWorkTodos).map(t => (
-           <TodoItem key={t.id} item={t} onToggle={onToggle} onDelete={onDelete}
-             syncStatus={workTodoSyncStatus[t.id]} sourceConfig={workSourceConfig} accentColor="#10b981" />
-         ))
-       )}
-      {slim && activeWorkTodos.length > 5 && (
-        <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', margin: '8px 0 0' }}>+{activeWorkTodos.length - 5} more — see Work tab</p>
-      )}
+       activeWorkTodos.length === 0 ? <LoadingRows message="No work to-dos — use ➕ Work To-Do on Jira, Asana, or Slack items ✓" color="#15803d" /> :
+       (slim ? activeWorkTodos.slice(0, 5) : activeWorkTodos).map(t => (
+         <TodoItem key={t.id} item={t} onToggle={onToggle} onDelete={onDelete} syncStatus={workTodoSyncStatus[t.id]} sourceConfig={workSourceConfig} accentColor="#10b981" />
+       ))}
+      {slim && activeWorkTodos.length > 5 && <p style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', margin: '8px 0 0' }}>+{activeWorkTodos.length - 5} more — see Work tab</p>}
     </div>
   </div>
 );
 
+// ── Main App ──────────────────────────────────────────────────────────────────────
 export default function DailyCommandCenter() {
   const [activeView, setActiveView] = useState('briefing');
   const [asyncStatus, setAsyncStatus] = useState({});
@@ -376,9 +371,9 @@ export default function DailyCommandCenter() {
   const [dismissedGmailIds, setDismissedGmailIds] = useState(new Set());
   const [dismissedCalIds, setDismissedCalIds] = useState(new Set());
 
-  const handleOpenTodo       = (rowId) => { setAddingTodoFor(rowId); setAddingWorkTodoFor(null); };
+  const handleOpenTodo       = (id) => { setAddingTodoFor(id); setAddingWorkTodoFor(null); };
   const handleCancelTodo     = () => setAddingTodoFor(null);
-  const handleOpenWorkTodo   = (rowId) => { setAddingWorkTodoFor(rowId); setAddingTodoFor(null); };
+  const handleOpenWorkTodo   = (id) => { setAddingWorkTodoFor(id); setAddingTodoFor(null); };
   const handleCancelWorkTodo = () => setAddingWorkTodoFor(null);
   const handleDismissGmail   = (emailId) => setDismissedGmailIds(prev => new Set([...prev, emailId]));
 
@@ -391,8 +386,8 @@ export default function DailyCommandCenter() {
     if (isCal)   setDismissedCalIds(prev => new Set([...prev, rowId.replace('cal_', '')]));
     const opt = { id: `opt_${Date.now()}`, name, due, priority, source: isGmail ? 'gmail' : 'manual', completed: false, createdAt: new Date().toISOString() };
     setTodos(p => [opt, ...p]);
-    const result = await addTodoAPI({ name, due, priority });
-    if (result.success) setTodos(p => p.map(t => t.id === opt.id ? result.todo : t));
+    const r = await addTodoAPI({ name, due, priority });
+    if (r.success) setTodos(p => p.map(t => t.id === opt.id ? r.todo : t));
     else setTodos(p => p.filter(t => t.id !== opt.id));
   };
 
@@ -401,12 +396,12 @@ export default function DailyCommandCenter() {
     setAddingWorkTodoFor(null);
     const opt = { id: `optw_${Date.now()}`, name, due, priority, source: source || 'manual', completed: false, createdAt: new Date().toISOString() };
     setWorkTodos(p => [opt, ...p]);
-    const result = await addWorkTodoAPI({ name, due, priority, source });
-    if (result.success) setWorkTodos(p => p.map(t => t.id === opt.id ? result.todo : t));
+    const r = await addWorkTodoAPI({ name, due, priority, source });
+    if (r.success) setWorkTodos(p => p.map(t => t.id === opt.id ? r.todo : t));
     else setWorkTodos(p => p.filter(t => t.id !== opt.id));
   };
 
-  // Personal To-Do
+  // ─ Personal To-Do ──────────────────────────────────────────────────────────
   const [todos, setTodos] = useState([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [todosError, setTodosError] = useState(null);
@@ -417,7 +412,7 @@ export default function DailyCommandCenter() {
   const loadTodos = useCallback(async () => {
     setTodosLoading(true);
     const { todos: fetched, kvMissing } = await fetchTodos();
-    setTodos(fetched); setTodosError(kvMissing ? 'kv_missing' : null); setTodosLoading(false);
+    setTodos(sa(fetched)); setTodosError(kvMissing ? 'kv_missing' : null); setTodosLoading(false);
   }, []);
   useEffect(() => { loadTodos(); }, [loadTodos]);
   const handleAddTodo = async () => {
@@ -438,7 +433,7 @@ export default function DailyCommandCenter() {
   };
   const handleDeleteTodo = async (id) => { setTodos(p => p.filter(t => t.id !== id)); await deleteTodoAPI(id); };
 
-  // Work To-Do
+  // ─ Work To-Do ────────────────────────────────────────────────────────────
   const [workTodos, setWorkTodos] = useState([]);
   const [workTodosLoading, setWorkTodosLoading] = useState(true);
   const [workTodosError, setWorkTodosError] = useState(null);
@@ -449,7 +444,7 @@ export default function DailyCommandCenter() {
   const loadWorkTodos = useCallback(async () => {
     setWorkTodosLoading(true);
     const { todos: fetched, kvMissing } = await fetchWorkTodos();
-    setWorkTodos(fetched); setWorkTodosError(kvMissing ? 'kv_missing' : null); setWorkTodosLoading(false);
+    setWorkTodos(sa(fetched)); setWorkTodosError(kvMissing ? 'kv_missing' : null); setWorkTodosLoading(false);
   }, []);
   useEffect(() => { loadWorkTodos(); }, [loadWorkTodos]);
   const handleAddWorkTodo = async () => {
@@ -470,9 +465,9 @@ export default function DailyCommandCenter() {
   };
   const handleDeleteWorkTodo = async (id) => { setWorkTodos(p => p.filter(t => t.id !== id)); await deleteWorkTodoAPI(id); };
 
-  // Grocery
-  const [groceries, setGroceries] = useState(() => lsGet('dcc_groceries', DEFAULT_GROCERIES));
-  const [checkedGroceries, setCheckedGroceries] = useState(() => lsGet('dcc_grocery_checks', {}));
+  // ─ Grocery ──────────────────────────────────────────────────────────────
+  const [groceries, setGroceries] = useState(() => sa(lsGet('dcc_groceries', DEFAULT_GROCERIES)));
+  const [checkedGroceries, setCheckedGroceries] = useState(() => lsGet('dcc_grocery_checks', {}) || {});
   const [newGrocery, setNewGrocery] = useState('');
   useEffect(() => { lsSet('dcc_groceries', groceries); }, [groceries]);
   useEffect(() => { lsSet('dcc_grocery_checks', checkedGroceries); }, [checkedGroceries]);
@@ -480,17 +475,17 @@ export default function DailyCommandCenter() {
   const deleteGrocery = (id) => setGroceries(p => p.filter(g => g.id !== id));
   const addGrocery = () => { if (!newGrocery.trim()) return; setGroceries(p => [...p, { id: Date.now(), name: newGrocery.trim() }]); setNewGrocery(''); };
 
-  // Jira
+  // ─ Live data ──────────────────────────────────────────────────────────────
   const [jiraTasks, setJiraTasks] = useState([]);
   const [jiraLoading, setJiraLoading] = useState(true);
   const [jiraError, setJiraError] = useState(false);
-  useEffect(() => { fetchMyJiraTasks().then(t => { setJiraTasks(t); setJiraLoading(false); }).catch(() => { setJiraLoading(false); setJiraError(true); }); }, []);
+  useEffect(() => { fetchMyJiraTasks().then(t => { setJiraTasks(sa(t)); setJiraLoading(false); }).catch(() => { setJiraLoading(false); setJiraError(true); }); }, []);
 
-  // Asana
   const [asanaTasks, setAsanaTasks] = useState([]);
   const [asanaLoading, setAsanaLoading] = useState(true);
   const [asanaError, setAsanaError] = useState(false);
-  useEffect(() => { fetchMyAsanaTasks().then(t => { setAsanaTasks(t); setAsanaLoading(false); }).catch(() => { setAsanaLoading(false); setAsanaError(true); }); }, []);
+  useEffect(() => { fetchMyAsanaTasks().then(t => { setAsanaTasks(sa(t)); setAsanaLoading(false); }).catch(() => { setAsanaLoading(false); setAsanaError(true); }); }, []);
+
   const toggleAsana = useCallback(async (gid, name) => {
     const key = gid || name;
     const nowChecked = !checkedAsana[key];
@@ -502,13 +497,11 @@ export default function DailyCommandCenter() {
     setTimeout(() => setAsyncStatus(p => ({ ...p, [key]: null })), 2500);
   }, [checkedAsana]);
 
-  // Slack
   const [slackMentions, setSlackMentions] = useState([]);
   const [slackLoading, setSlackLoading] = useState(true);
   const [slackError, setSlackError] = useState(false);
-  useEffect(() => { fetchMySlackMentions().then(m => { setSlackMentions(m); setSlackLoading(false); }).catch(() => { setSlackLoading(false); setSlackError(true); }); }, []);
+  useEffect(() => { fetchMySlackMentions().then(m => { setSlackMentions(sa(m)); setSlackLoading(false); }).catch(() => { setSlackLoading(false); setSlackError(true); }); }, []);
 
-  // Gmail + auto-seed
   const [gmailData, setGmailData] = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
   const [gmailLoading, setGmailLoading] = useState(true);
   const [gmailError, setGmailError] = useState(false);
@@ -516,13 +509,17 @@ export default function DailyCommandCenter() {
     async function run() {
       try {
         const data = await fetchMyGmailActionItems();
-        setGmailData(data); setGmailError(data.error); setGmailLoading(false);
-        const actioned = (data.emails || []).filter(e => e.isActioned);
+        // Ensure emails is always an array before storing in state
+        const safeData = { ...data, emails: sa(data.emails) };
+        setGmailData(safeData);
+        setGmailError(!!data.error);
+        setGmailLoading(false);
+        const actioned = safeData.emails.filter(e => e.isActioned);
         if (actioned.length > 0) {
           const result = await seedTodosFromGmail(actioned);
           if (result.added > 0) {
             const { todos: fresh, kvMissing } = await fetchTodos();
-            setTodos(fresh); setTodosError(kvMissing ? 'kv_missing' : null);
+            setTodos(sa(fresh)); setTodosError(kvMissing ? 'kv_missing' : null);
           }
         }
       } catch { setGmailLoading(false); setGmailError(true); }
@@ -530,12 +527,21 @@ export default function DailyCommandCenter() {
     run();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calendar
   const [calendarData, setCalendarData] = useState({ today: [], tomorrow: [], prepItems: [], totalCount: 0 });
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError] = useState(false);
-  useEffect(() => { fetchMyCalendarEvents().then(d => { setCalendarData(d); setCalendarError(d.error); setCalendarLoading(false); }).catch(() => { setCalendarLoading(false); setCalendarError(true); }); }, []);
+  useEffect(() => {
+    fetchMyCalendarEvents()
+      .then(d => {
+        // Ensure today/tomorrow are always arrays before storing
+        setCalendarData({ ...d, today: sa(d.today), tomorrow: sa(d.tomorrow), prepItems: sa(d.prepItems) });
+        setCalendarError(!!d.error);
+        setCalendarLoading(false);
+      })
+      .catch(() => { setCalendarLoading(false); setCalendarError(true); });
+  }, []);
 
+  // ─ Derived values ───────────────────────────────────────────────────────────
   const criticalCount      = jiraTasks.filter(t => t.priority === 'Critical').length;
   const reviewCount        = jiraTasks.filter(t => t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing').length;
   const overdueCount       = asanaTasks.filter(t => t.overdue).length;
@@ -556,16 +562,15 @@ export default function DailyCommandCenter() {
     { id: 'todo', label: 'Personal', icon: '🏠' }, { id: 'grocery', label: 'Grocery', icon: '🛒' },
   ];
 
-  const isLoading = jiraLoading || asanaLoading || todosLoading || workTodosLoading || slackLoading || gmailLoading || calendarLoading;
-  const isError   = jiraError || asanaError || slackError || gmailError || calendarError;
-  const syncColor = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
-  const syncBg    = isLoading ? 'rgba(245,158,11,0.1)' : isError ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)';
+  const isLoading  = jiraLoading || asanaLoading || todosLoading || workTodosLoading || slackLoading || gmailLoading || calendarLoading;
+  const isError    = jiraError || asanaError || slackError || gmailError || calendarError;
+  const syncColor  = isLoading ? '#f59e0b' : isError ? '#ef4444' : '#34d399';
+  const syncBg     = isLoading ? 'rgba(245,158,11,0.1)' : isError ? 'rgba(239,68,68,0.1)' : 'rgba(52,211,153,0.1)';
   const syncBorder = isLoading ? 'rgba(245,158,11,0.3)' : isError ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
-  const syncLabel = isLoading ? 'Loading…' : isError ? 'Partial error' : 'Live';
+  const syncLabel  = isLoading ? 'Loading…' : isError ? 'Partial error' : 'Live';
 
-  const inputStyle = { padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit', background: '#fff' };
+  const is = { padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit', background: '#fff' };
 
-  // Shorthand for work todo action bar props — NO reserved words as keys
   const wtaAdding = addingWorkTodoFor;
   const wtaOpen   = handleOpenWorkTodo;
   const wtaSave   = handleSaveWorkTodoFromCard;
@@ -781,10 +786,8 @@ export default function DailyCommandCenter() {
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
             <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
-              <div>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>Asana Tasks</h2>
-                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{asanaLoading ? 'Loading…' : `${asanaTasks.length} open • ${overdueCount} overdue`} • check off to sync with Asana</p>
-              </div>
+              <div><h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>Asana Tasks</h2>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{asanaLoading ? 'Loading…' : `${asanaTasks.length} open • ${overdueCount} overdue`} • check off to sync with Asana</p></div>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
               {asanaLoading ? <LoadingRows message="Fetching your Asana tasks…" /> : asanaError ? <LoadingRows message="Could not load Asana tasks. Check ASANA_TOKEN in Vercel." color="#ef4444" /> : (
@@ -813,26 +816,19 @@ export default function DailyCommandCenter() {
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
-                <div>
-                  <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>💼 Work To-Do</h2>
-                  <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{workTodosLoading ? 'Loading…' : `${activeWorkTodos.length} active · ${completedWorkTodos.length} completed`}{' '}· sourced from ⊞ Jira · ◎ Asana · 💬 Slack</p>
-                </div>
+                <div><h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>💼 Work To-Do</h2>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{workTodosLoading ? 'Loading…' : `${activeWorkTodos.length} active · ${completedWorkTodos.length} completed`}{' '}· sourced from ⊞ Jira · ◎ Asana · 💬 Slack</p></div>
               </div>
-              {workTodosError === 'kv_missing' && (
-                <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}>
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p>
-                  <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.</p>
-                </div>
-              )}
+              {workTodosError === 'kv_missing' && <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}><p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p><p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.</p></div>}
               <div style={{ padding: '12px 16px' }}>
                 <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #bbf7d0' }}>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <input type="text" value={newWorkTodo} onChange={e => setNewWorkTodo(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddWorkTodo()} placeholder="Add a work to-do…" style={{ ...inputStyle, flex: 1 }} />
+                    <input type="text" value={newWorkTodo} onChange={e => setNewWorkTodo(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddWorkTodo()} placeholder="Add a work to-do…" style={{ ...is, flex: 1 }} />
                     <button onClick={handleAddWorkTodo} style={{ padding: '9px 16px', borderRadius: '8px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>Add</button>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <input type="date" value={newWorkTodoDue} onChange={e => setNewWorkTodoDue(e.target.value)} style={{ ...inputStyle, flex: 1, color: newWorkTodoDue ? '#334155' : '#94a3b8' }} />
-                    <select value={newWorkTodoPri} onChange={e => setNewWorkTodoPri(e.target.value)} style={{ ...inputStyle, flex: 1, color: newWorkTodoPri ? '#334155' : '#94a3b8' }}>
+                    <input type="date" value={newWorkTodoDue} onChange={e => setNewWorkTodoDue(e.target.value)} style={{ ...is, flex: 1, color: newWorkTodoDue ? '#334155' : '#94a3b8' }} />
+                    <select value={newWorkTodoPri} onChange={e => setNewWorkTodoPri(e.target.value)} style={{ ...is, flex: 1, color: newWorkTodoPri ? '#334155' : '#94a3b8' }}>
                       <option value="">Priority (optional)</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
                     </select>
                   </div>
@@ -858,21 +854,19 @@ export default function DailyCommandCenter() {
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
-              <div>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🏠 Personal To-Do</h2>
-                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}{' '}· 📧 flagged emails auto-added each session</p>
-              </div>
+              <div><h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🏠 Personal To-Do</h2>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{todosLoading ? 'Loading…' : `${activeTodos.length} active · ${completedTodos.length} completed`}{' '}· 📧 flagged emails auto-added each session</p></div>
             </div>
             {todosError === 'kv_missing' && <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}><p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p><p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.</p></div>}
             <div style={{ padding: '12px 16px' }}>
               <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTodo()} placeholder="Add a personal to-do…" style={{ ...inputStyle, flex: 1 }} />
+                  <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTodo()} placeholder="Add a personal to-do…" style={{ ...is, flex: 1 }} />
                   <button onClick={handleAddTodo} style={{ padding: '9px 16px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>Add</button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input type="date" value={newTodoDue} onChange={e => setNewTodoDue(e.target.value)} style={{ ...inputStyle, flex: 1, color: newTodoDue ? '#334155' : '#94a3b8' }} />
-                  <select value={newTodoPri} onChange={e => setNewTodoPri(e.target.value)} style={{ ...inputStyle, flex: 1, color: newTodoPri ? '#334155' : '#94a3b8' }}>
+                  <input type="date" value={newTodoDue} onChange={e => setNewTodoDue(e.target.value)} style={{ ...is, flex: 1, color: newTodoDue ? '#334155' : '#94a3b8' }} />
+                  <select value={newTodoPri} onChange={e => setNewTodoPri(e.target.value)} style={{ ...is, flex: 1, color: newTodoPri ? '#334155' : '#94a3b8' }}>
                     <option value="">Priority (optional)</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
                   </select>
                 </div>
@@ -897,10 +891,8 @@ export default function DailyCommandCenter() {
           <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
-              <div>
-                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🛒 Grocery List</h2>
-                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{groceries.filter(g => !checkedGroceries[g.id]).length} remaining · {groceries.filter(g => checkedGroceries[g.id]).length} in cart</p>
-              </div>
+              <div><h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🛒 Grocery List</h2>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{groceries.filter(g => !checkedGroceries[g.id]).length} remaining · {groceries.filter(g => checkedGroceries[g.id]).length} in cart</p></div>
             </div>
             <div style={{ padding: '12px 16px' }}>
               {groceries.filter(g => !checkedGroceries[g.id]).map(g => <GroceryItem key={g.id} item={g} checked={false} onToggle={toggleGrocery} onDelete={deleteGrocery} />)}
