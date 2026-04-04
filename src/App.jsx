@@ -73,8 +73,6 @@ async function deleteWorkTodoAPI(id) {
 }
 
 // ─── Gmail → Personal To-Do seed helper ──────────────────────────────────────
-// Sends actioned emails to the todos API for deduped auto-seeding.
-// Returns { added, skipped } so the caller can decide whether to reload todos.
 async function seedTodosFromGmail(actionedEmails) {
   if (!actionedEmails || actionedEmails.length === 0) return { added: 0, skipped: 0 };
   try {
@@ -121,7 +119,6 @@ const workSourceConfig = {
   manual: { emoji: '✏️', label: 'Manual', color: '#64748b' },
 };
 
-// ─── G Badge ─────────────────────────────────────────────────────────────────
 const GBadge = ({ size = 32 }) => (
   <div style={{
     width: `${size}px`, height: `${size}px`, borderRadius: '50%', flexShrink: 0,
@@ -135,7 +132,6 @@ const GBadge = ({ size = 32 }) => (
   </div>
 );
 
-// ─── AddTodoInline ─────────────────────────────────────────────────────────────
 const AddTodoInline = ({ defaultName, label = 'Personal To-Do', accentColor = '#3b82f6', onSave, onCancel }) => {
   const [name, setName]         = useState(defaultName);
   const [due, setDue]           = useState('');
@@ -185,7 +181,6 @@ const AddTodoInline = ({ defaultName, label = 'Personal To-Do', accentColor = '#
   );
 };
 
-// ─── Shared micro-components ──────────────────────────────────────────────────
 const SyncBadge = ({ status }) => {
   if (!status) return null;
   const c = { syncing: { bg: '#eff6ff', text: '#1d4ed8', label: '⟳ Syncing…' },
@@ -232,7 +227,6 @@ const LoadingRows = ({ message, color = '#f59e0b' }) => (
   <div style={{ padding: '20px', textAlign: 'center', color, fontSize: '13px' }}>{message}</div>
 );
 
-// ─── WorkTodoActionBar ────────────────────────────────────────────────────────
 const WorkTodoActionBar = ({ rowId, defaultName, source, addingWorkTodoFor, onOpen, onSave, onCancel }) => {
   const isOpen = addingWorkTodoFor === rowId;
   return (
@@ -260,7 +254,6 @@ const WorkTodoActionBar = ({ rowId, defaultName, source, addingWorkTodoFor, onOp
   );
 };
 
-// ─── JiraRow ──────────────────────────────────────────────────────────────────
 const JiraRow = ({ task, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCancelWorkTodo }) => {
   const rowId = `jira_${task.key}`;
   return (
@@ -280,21 +273,14 @@ const JiraRow = ({ task, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCa
           )}
         </div>
         <p style={{ margin: 0, fontSize: '12px', color: '#334155', lineHeight: '1.4' }}>{task.summary}</p>
-        <WorkTodoActionBar
-          rowId={rowId}
-          defaultName={`Follow up: [${task.key}] ${task.summary}`}
-          source="jira"
-          addingWorkTodoFor={addingWorkTodoFor}
-          onOpen={onOpenWorkTodo}
-          onSave={onSaveWorkTodo}
-          onCancel={onCancelWorkTodo}
-        />
+        <WorkTodoActionBar rowId={rowId} defaultName={`Follow up: [${task.key}] ${task.summary}`}
+          source="jira" addingWorkTodoFor={addingWorkTodoFor}
+          onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
       </div>
     </div>
   );
 };
 
-// ─── AsanaRow ─────────────────────────────────────────────────────────────────
 const AsanaRow = ({ task, checked, syncStatus, onToggle, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCancelWorkTodo }) => {
   const rowId = `asana_${task.gid || task.name}`;
   return (
@@ -320,21 +306,14 @@ const AsanaRow = ({ task, checked, syncStatus, onToggle, addingWorkTodoFor, onOp
             {task.overdue ? '⚠ OVERDUE — ' : 'Due '}{task.due}
           </span>
         )}
-        <WorkTodoActionBar
-          rowId={rowId}
-          defaultName={`Action: ${task.name}`}
-          source="asana"
-          addingWorkTodoFor={addingWorkTodoFor}
-          onOpen={onOpenWorkTodo}
-          onSave={onSaveWorkTodo}
-          onCancel={onCancelWorkTodo}
-        />
+        <WorkTodoActionBar rowId={rowId} defaultName={`Action: ${task.name}`}
+          source="asana" addingWorkTodoFor={addingWorkTodoFor}
+          onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
       </div>
     </div>
   );
 };
 
-// ─── SlackMentionRow ──────────────────────────────────────────────────────────
 const SlackMentionRow = ({ mention, addingWorkTodoFor, onOpenWorkTodo, onSaveWorkTodo, onCancelWorkTodo }) => {
   const cleanText = mention.text.replace(/<@[A-Z0-9]+>/g, '@…').replace(/<[^>]+>/g, '').trim();
   const time = new Date(parseFloat(mention.ts) * 1000).toLocaleTimeString('en-US', {
@@ -359,20 +338,14 @@ const SlackMentionRow = ({ mention, addingWorkTodoFor, onOpenWorkTodo, onSaveWor
           Open in Slack →
         </a>
       )}
-      <WorkTodoActionBar
-        rowId={rowId}
+      <WorkTodoActionBar rowId={rowId}
         defaultName={`Follow up on Slack (#${mention.channel}): ${snippet}`}
-        source="slack"
-        addingWorkTodoFor={addingWorkTodoFor}
-        onOpen={onOpenWorkTodo}
-        onSave={onSaveWorkTodo}
-        onCancel={onCancelWorkTodo}
-      />
+        source="slack" addingWorkTodoFor={addingWorkTodoFor}
+        onOpen={onOpenWorkTodo} onSave={onSaveWorkTodo} onCancel={onCancelWorkTodo} />
     </div>
   );
 };
 
-// ─── GmailRow ─────────────────────────────────────────────────────────────────
 const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo, onDismiss }) => {
   const rowId  = `gmail_${email.id}`;
   const isOpen = addingTodoFor === rowId;
@@ -412,17 +385,14 @@ const GmailRow = ({ email, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo, 
         )}
       </div>
       {isOpen && (
-        <AddTodoInline
-          defaultName={`Reply to: ${email.subject}`}
+        <AddTodoInline defaultName={`Reply to: ${email.subject}`}
           onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)}
-          onCancel={onCancelTodo}
-        />
+          onCancel={onCancelTodo} />
       )}
     </div>
   );
 };
 
-// ─── CalendarEventRow ─────────────────────────────────────────────────────────
 const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCancelTodo }) => {
   const rowId  = `cal_${event.id}`;
   const isOpen = addingTodoFor === rowId;
@@ -462,11 +432,9 @@ const CalendarEventRow = ({ event, addingTodoFor, onOpenTodo, onSaveTodo, onCanc
         )}
       </div>
       {isOpen && (
-        <AddTodoInline
-          defaultName={`Prep for: ${event.summary}`}
+        <AddTodoInline defaultName={`Prep for: ${event.summary}`}
           onSave={(name, due, priority) => onSaveTodo(rowId, name, due, priority)}
-          onCancel={onCancelTodo}
-        />
+          onCancel={onCancelTodo} />
       )}
     </div>
   );
@@ -485,7 +453,6 @@ const GroceryItem = ({ item, checked, onToggle, onDelete }) => (
   </div>
 );
 
-// ─── TodoItem ─────────────────────────────────────────────────────────────────
 const TodoItem = ({ item, onToggle, onDelete, syncStatus, sourceConfig, accentColor = '#8b5cf6' }) => {
   const isOverdue = item.due && item.due < todayStr && !item.completed;
   const src = (sourceConfig || personalSourceConfig)[item.source] || (sourceConfig || personalSourceConfig).manual;
@@ -526,7 +493,6 @@ const TodoItem = ({ item, onToggle, onDelete, syncStatus, sourceConfig, accentCo
   );
 };
 
-// ─── Main app ─────────────────────────────────────────────────────────────────
 export default function DailyCommandCenter() {
   const [activeView, setActiveView]         = useState('briefing');
   const [asyncStatus, setAsyncStatus]       = useState({});
@@ -536,19 +502,16 @@ export default function DailyCommandCenter() {
   const [jiraFilter, setJiraFilter]         = useState('All');
   const [jiraPriorityFilter, setJiraPriorityFilter] = useState('All');
 
-  // ── Inline form state ─────────────────────────────────────────────────────
   const [addingTodoFor, setAddingTodoFor]           = useState(null);
   const [addingWorkTodoFor, setAddingWorkTodoFor]   = useState(null);
   const [dismissedGmailIds, setDismissedGmailIds]   = useState(new Set());
   const [dismissedCalIds, setDismissedCalIds]       = useState(new Set());
 
-  const handleOpenTodo      = (rowId) => { setAddingTodoFor(rowId); setAddingWorkTodoFor(null); };
-  const handleCancelTodo    = ()      => setAddingTodoFor(null);
-  const handleOpenWorkTodo  = (rowId) => { setAddingWorkTodoFor(rowId); setAddingTodoFor(null); };
-  const handleCancelWorkTodo = ()     => setAddingWorkTodoFor(null);
-
-  const handleDismissGmail = (emailId) =>
-    setDismissedGmailIds(prev => new Set([...prev, emailId]));
+  const handleOpenTodo       = (rowId) => { setAddingTodoFor(rowId); setAddingWorkTodoFor(null); };
+  const handleCancelTodo     = ()      => setAddingTodoFor(null);
+  const handleOpenWorkTodo   = (rowId) => { setAddingWorkTodoFor(rowId); setAddingTodoFor(null); };
+  const handleCancelWorkTodo = ()      => setAddingWorkTodoFor(null);
+  const handleDismissGmail   = (emailId) => setDismissedGmailIds(prev => new Set([...prev, emailId]));
 
   const handleSaveTodoFromCard = async (rowId, name, due, priority) => {
     if (!name) return;
@@ -576,7 +539,7 @@ export default function DailyCommandCenter() {
     else setWorkTodos(p => p.filter(t => t.id !== optimistic.id));
   };
 
-  // ── Personal To-Do ────────────────────────────────────────────────────────
+  // Personal To-Do
   const [todos, setTodos]               = useState([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [todosError, setTodosError]     = useState(null);
@@ -611,7 +574,7 @@ export default function DailyCommandCenter() {
   };
   const handleDeleteTodo = async (id) => { setTodos(p => p.filter(t => t.id !== id)); await deleteTodoAPI(id); };
 
-  // ── Work To-Do ────────────────────────────────────────────────────────────
+  // Work To-Do
   const [workTodos, setWorkTodos]               = useState([]);
   const [workTodosLoading, setWorkTodosLoading] = useState(true);
   const [workTodosError, setWorkTodosError]     = useState(null);
@@ -646,7 +609,7 @@ export default function DailyCommandCenter() {
   };
   const handleDeleteWorkTodo = async (id) => { setWorkTodos(p => p.filter(t => t.id !== id)); await deleteWorkTodoAPI(id); };
 
-  // ── Grocery list ──────────────────────────────────────────────────────────
+  // Grocery
   const [groceries, setGroceries]               = useState(() => lsGet('dcc_groceries', DEFAULT_GROCERIES));
   const [checkedGroceries, setCheckedGroceries] = useState(() => lsGet('dcc_grocery_checks', {}));
   const [newGrocery, setNewGrocery]             = useState('');
@@ -659,7 +622,7 @@ export default function DailyCommandCenter() {
     setGroceries(p => [...p, { id: Date.now(), name: newGrocery.trim() }]); setNewGrocery('');
   };
 
-  // ── Live data fetches ─────────────────────────────────────────────────────
+  // Jira
   const [jiraTasks, setJiraTasks]     = useState([]);
   const [jiraLoading, setJiraLoading] = useState(true);
   const [jiraError, setJiraError]     = useState(false);
@@ -669,6 +632,7 @@ export default function DailyCommandCenter() {
       .catch(() => { setJiraLoading(false); setJiraError(true); });
   }, []);
 
+  // Asana
   const [asanaTasks, setAsanaTasks]     = useState([]);
   const [asanaLoading, setAsanaLoading] = useState(true);
   const [asanaError, setAsanaError]     = useState(false);
@@ -689,6 +653,7 @@ export default function DailyCommandCenter() {
     setTimeout(() => setAsyncStatus(p => ({ ...p, [key]: null })), 2500);
   }, [checkedAsana]);
 
+  // Slack
   const [slackMentions, setSlackMentions]     = useState([]);
   const [slackLoading, setSlackLoading]       = useState(true);
   const [slackError, setSlackError]           = useState(false);
@@ -698,35 +663,36 @@ export default function DailyCommandCenter() {
       .catch(() => { setSlackLoading(false); setSlackError(true); });
   }, []);
 
+  // Gmail + auto-seed personal to-dos
   const [gmailData, setGmailData]       = useState({ emails: [], totalUnread: 0, actionedCount: 0 });
   const [gmailLoading, setGmailLoading] = useState(true);
   const [gmailError, setGmailError]     = useState(false);
 
-  // ── Auto-seed Personal To-Do from Gmail actioned emails ───────────────────
-  // Runs once when Gmail finishes loading. Sends all isActioned emails to the
-  // seed_from_gmail endpoint which dedupes by Gmail message ID (sourceRef).
-  // If any new todos were written, reloads the todo list.
-  useEffect(() => {
-    fetchMyGmailActionItems()
-      .then(async data => {
+  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+    async function run() {
+      try {
+        const data = await fetchMyGmailActionItems();
         setGmailData(data);
         setGmailError(data.error);
         setGmailLoading(false);
-        // Seed personal to-dos from actioned emails (deduped — safe to call every session)
         const actioned = (data.emails || []).filter(e => e.isActioned);
         if (actioned.length > 0) {
-          const { added } = await seedTodosFromGmail(actioned);
-          // Only reload todos if something new was actually written
-          if (added > 0) {
+          const result = await seedTodosFromGmail(actioned);
+          if (result.added > 0) {
             const { todos: fresh, kvMissing } = await fetchTodos();
             setTodos(fresh);
             setTodosError(kvMissing ? 'kv_missing' : null);
           }
         }
-      })
-      .catch(() => { setGmailLoading(false); setGmailError(true); });
-  }, []);
+      } catch {
+        setGmailLoading(false);
+        setGmailError(true);
+      }
+    }
+    run();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Calendar
   const [calendarData, setCalendarData]       = useState({ today: [], tomorrow: [], prepItems: [], totalCount: 0 });
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError]     = useState(false);
@@ -736,7 +702,6 @@ export default function DailyCommandCenter() {
       .catch(() => { setCalendarLoading(false); setCalendarError(true); });
   }, []);
 
-  // ── Derived counts ────────────────────────────────────────────────────────
   const criticalCount  = jiraTasks.filter(t => t.priority === 'Critical').length;
   const reviewCount    = jiraTasks.filter(t =>
     t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
@@ -756,16 +721,16 @@ export default function DailyCommandCenter() {
 
   const visibleGmailEmails   = gmailData.emails.filter(e => !dismissedGmailIds.has(e.id));
   const visibleActionedCount = visibleGmailEmails.filter(e => e.isActioned).length;
-  const visibleCalToday    = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
-  const visibleCalTomorrow = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
+  const visibleCalToday      = calendarData.today.filter(e => !dismissedCalIds.has(e.id));
+  const visibleCalTomorrow   = calendarData.tomorrow.filter(e => !dismissedCalIds.has(e.id));
 
   const views = [
-    { id: 'briefing', label: 'Briefing',  icon: '◉'  },
-    { id: 'jira',     label: 'Jira',      icon: '⊞'  },
-    { id: 'asana',    label: 'Asana',     icon: '◎'  },
-    { id: 'work',     label: 'Work',      icon: '💼' },
-    { id: 'todo',     label: 'Personal',  icon: '🏠' },
-    { id: 'grocery',  label: 'Grocery',   icon: '🛒' },
+    { id: 'briefing', label: 'Briefing', icon: '◉' },
+    { id: 'jira',     label: 'Jira',     icon: '⊞' },
+    { id: 'asana',    label: 'Asana',    icon: '◎' },
+    { id: 'work',     label: 'Work',     icon: '💼' },
+    { id: 'todo',     label: 'Personal', icon: '🏠' },
+    { id: 'grocery',  label: 'Grocery',  icon: '🛒' },
   ];
 
   const isLoading     = jiraLoading || asanaLoading || todosLoading || workTodosLoading || slackLoading || gmailLoading || calendarLoading;
@@ -781,7 +746,6 @@ export default function DailyCommandCenter() {
     fontSize: '13px', outline: 'none', fontFamily: 'inherit', background: '#fff',
   };
 
-  // ── Shared Work To-Do panel ───────────────────────────────────────────────
   const WorkTodosPanel = ({ slim = false }) => (
     <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
@@ -791,18 +755,11 @@ export default function DailyCommandCenter() {
       </div>
       <div style={{ padding: '0 16px 16px' }}>
         {workTodosLoading ? <LoadingRows message="Loading work to-dos…" color="#10b981" /> :
-         workTodosError === 'kv_missing' ? (
-           <LoadingRows message="⚠ Vercel KV not set up yet — see setup instructions." color="#f59e0b" />
-         ) : activeWorkTodos.length === 0 ? (
-           <LoadingRows message="No work to-dos — use ➕ Work To-Do on Jira, Asana, or Slack items ✓" color="#15803d" />
-         ) : (
+         workTodosError === 'kv_missing' ? <LoadingRows message="⚠ Vercel KV not set up yet." color="#f59e0b" /> :
+         activeWorkTodos.length === 0 ? <LoadingRows message="No work to-dos — use ➕ Work To-Do on Jira, Asana, or Slack items ✓" color="#15803d" /> : (
            (slim ? activeWorkTodos.slice(0, 5) : activeWorkTodos).map(t => (
-             <TodoItem key={t.id} item={t}
-               onToggle={handleToggleWorkTodo}
-               onDelete={handleDeleteWorkTodo}
-               syncStatus={workTodoSyncStatus[t.id]}
-               sourceConfig={workSourceConfig}
-               accentColor="#10b981" />
+             <TodoItem key={t.id} item={t} onToggle={handleToggleWorkTodo} onDelete={handleDeleteWorkTodo}
+               syncStatus={workTodoSyncStatus[t.id]} sourceConfig={workSourceConfig} accentColor="#10b981" />
            ))
          )}
         {slim && activeWorkTodos.length > 5 && (
@@ -819,7 +776,7 @@ export default function DailyCommandCenter() {
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
 
-      {/* ── G Unit Banner ── */}
+      {/* G Unit Banner */}
       <div style={{ width: '100%', position: 'relative', overflow: 'hidden',
         backgroundImage: 'url(https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=2069&auto=format&fit=crop)',
         backgroundSize: 'cover', backgroundPosition: 'center 60%' }}>
@@ -841,8 +798,7 @@ export default function DailyCommandCenter() {
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>G</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-            <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '36px', fontWeight: 300,
-              color: '#fff', margin: 0, lineHeight: 1.2 }}>
+            <h1 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: '36px', fontWeight: 300, color: '#fff', margin: 0, lineHeight: 1.2 }}>
               <strong style={{ fontWeight: 700 }}>Unit</strong> Actions
             </h1>
             <p style={{ margin: 0, fontFamily: "'DM Sans', sans-serif", fontSize: '14px',
@@ -851,11 +807,12 @@ export default function DailyCommandCenter() {
         </div>
       </div>
 
-      {/* ── Sub-header ── */}
+      {/* Sub-header */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '24px 16px 16px' }}>
         <div style={{ marginBottom: '20px' }}>
-          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px',
-            color: '#fff', margin: 0, lineHeight: 1.2 }}>{greeting}, Gina. {greetingEmoji}</h1>
+          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '28px', color: '#fff', margin: 0, lineHeight: 1.2 }}>
+            {greeting}, Gina. {greetingEmoji}
+          </h1>
           <p style={{ color: '#94a3b8', fontSize: '13px', margin: '6px 0 0' }}>{dateStr}</p>
         </div>
 
@@ -866,17 +823,14 @@ export default function DailyCommandCenter() {
             { label: 'Critical Jira',  value: jiraLoading  ? '…' : criticalCount, color: '#f97316', bg: 'rgba(249,115,22,0.12)',  border: 'rgba(249,115,22,0.3)' },
             { label: 'Needs review',   value: jiraLoading  ? '…' : reviewCount,   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
           ].map(s => (
-            <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`,
-              borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+            <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: '10px', color: s.color, marginTop: '4px',
-                fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+              <div style={{ fontSize: '10px', color: s.color, marginTop: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '4px', background: 'rgba(30,41,59,0.5)', borderRadius: '10px',
-          padding: '4px', border: '1px solid rgba(71,85,105,0.5)' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'rgba(30,41,59,0.5)', borderRadius: '10px', padding: '4px', border: '1px solid rgba(71,85,105,0.5)' }}>
           {views.map(v => (
             <button key={v.id} onClick={() => setActiveView(v.id)} style={{
               flex: 1, padding: '10px 4px', borderRadius: '7px', fontSize: '11px', fontWeight: 600,
@@ -889,15 +843,14 @@ export default function DailyCommandCenter() {
         </div>
       </div>
 
-      {/* ── Content ── */}
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 16px 48px' }}>
 
-        {/* ── BRIEFING ── */}
+        {/* BRIEFING */}
         {activeView === 'briefing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            {/* Critical */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>🔴 Critical — Act Now</h2>
@@ -908,37 +861,30 @@ export default function DailyCommandCenter() {
                  jiraTasks.filter(t => t.priority === 'Critical').length === 0
                    ? <LoadingRows message="No critical issues right now ✓" color="#15803d" />
                    : jiraTasks.filter(t => t.priority === 'Critical').map(t => (
-                       <JiraRow key={t.key} task={t}
-                         addingWorkTodoFor={addingWorkTodoFor}
-                         onOpenWorkTodo={handleOpenWorkTodo}
-                         onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                         onCancelWorkTodo={handleCancelWorkTodo} />
+                       <JiraRow key={t.key} task={t} addingWorkTodoFor={addingWorkTodoFor}
+                         onOpenWorkTodo={handleOpenWorkTodo} onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
                      ))}
               </div>
             </div>
 
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            {/* Review */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>🔵 Awaiting Review / QA</h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {jiraLoading ? <LoadingRows message="Loading from Jira…" /> :
-                 jiraTasks.filter(t =>
-                   t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing'
-                 ).map(t => (
-                   <JiraRow key={t.key} task={t}
-                     addingWorkTodoFor={addingWorkTodoFor}
-                     onOpenWorkTodo={handleOpenWorkTodo}
-                     onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                     onCancelWorkTodo={handleCancelWorkTodo} />
-                 ))}
+                 jiraTasks.filter(t => t.status === 'Ready for Review' || t.status === 'Ready for QA' || t.status === 'Ready for QA Testing')
+                   .map(t => (
+                     <JiraRow key={t.key} task={t} addingWorkTodoFor={addingWorkTodoFor}
+                       onOpenWorkTodo={handleOpenWorkTodo} onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
+                   ))}
               </div>
             </div>
 
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            {/* Due This Month */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📌 Due This Month — Asana</h2>
@@ -947,35 +893,28 @@ export default function DailyCommandCenter() {
                 {asanaLoading ? <LoadingRows message="Loading from Asana…" /> :
                  asanaError   ? <LoadingRows message="Could not load Asana tasks." color="#ef4444" /> :
                  asanaTasks.filter(t => t.due && t.due <= endOfThisMonth).map(t => (
-                   <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]}
-                     syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana}
-                     addingWorkTodoFor={addingWorkTodoFor}
-                     onOpenWorkTodo={handleOpenWorkTodo}
-                     onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                     onCancelWorkTodo={handleCancelWorkTodo} />
+                   <AsanaRow key={t.gid} task={t} checked={!!checkedAsana[t.gid]} syncStatus={asyncStatus[t.gid]} onToggle={toggleAsana}
+                     addingWorkTodoFor={addingWorkTodoFor} onOpenWorkTodo={handleOpenWorkTodo}
+                     onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
                  ))}
               </div>
             </div>
 
             <WorkTodosPanel slim={true} />
 
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            {/* Personal To-Do preview */}
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>🏠 Personal To-Do</h2>
               </div>
               <div style={{ padding: '0 16px 16px' }}>
                 {todosLoading ? <LoadingRows message="Loading to-dos…" /> :
-                 todosError === 'kv_missing' ? (
-                   <LoadingRows message="⚠ Vercel KV not set up yet — see setup instructions." color="#f59e0b" />
-                 ) : activeTodos.length === 0 ? (
-                   <LoadingRows message="No personal to-dos — use ➕ To-Do on Gmail or Calendar items below ✓" color="#15803d" />
-                 ) : (
+                 todosError === 'kv_missing' ? <LoadingRows message="⚠ Vercel KV not set up yet." color="#f59e0b" /> :
+                 activeTodos.length === 0 ? <LoadingRows message="No personal to-dos — use ➕ To-Do on Gmail or Calendar items below ✓" color="#15803d" /> : (
                    activeTodos.slice(0, 5).map(t => (
-                     <TodoItem key={t.id} item={t} onToggle={handleToggleTodo}
-                       onDelete={handleDeleteTodo} syncStatus={todoSyncStatus[t.id]}
-                       sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
+                     <TodoItem key={t.id} item={t} onToggle={handleToggleTodo} onDelete={handleDeleteTodo}
+                       syncStatus={todoSyncStatus[t.id]} sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
                    ))
                  )}
                 {activeTodos.length > 5 && (
@@ -987,8 +926,7 @@ export default function DailyCommandCenter() {
             </div>
 
             {/* Calendar */}
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📅 Calendar</h2>
@@ -1007,8 +945,7 @@ export default function DailyCommandCenter() {
                    </div>
                  ) : (
                    <>
-                     <p style={{ margin: '8px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
-                       textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today</p>
+                     <p style={{ margin: '8px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today</p>
                      {visibleCalToday.length === 0
                        ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 12px 4px' }}>No personal events today</p>
                        : visibleCalToday.map(e => (
@@ -1016,8 +953,7 @@ export default function DailyCommandCenter() {
                              onOpenTodo={handleOpenTodo} onSaveTodo={handleSaveTodoFromCard} onCancelTodo={handleCancelTodo} />
                          ))
                      }
-                     <p style={{ margin: '12px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b',
-                       textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tomorrow — {tomorrowLabel}</p>
+                     <p style={{ margin: '12px 0 6px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tomorrow — {tomorrowLabel}</p>
                      {visibleCalTomorrow.length === 0
                        ? <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 4px 4px' }}>No personal events tomorrow</p>
                        : visibleCalTomorrow.map(e => (
@@ -1034,8 +970,7 @@ export default function DailyCommandCenter() {
             </div>
 
             {/* Gmail */}
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>📧 Gmail</h2>
@@ -1058,8 +993,7 @@ export default function DailyCommandCenter() {
                ) : (
                  <>
                    {visibleActionedCount > 0 && (
-                     <div style={{ background: '#fffbeb', borderRadius: '8px', padding: '8px 12px',
-                       border: '1px solid #fde68a', marginBottom: '10px' }}>
+                     <div style={{ background: '#fffbeb', borderRadius: '8px', padding: '8px 12px', border: '1px solid #fde68a', marginBottom: '10px' }}>
                        <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: '#92400e' }}>
                          ⚡ {visibleActionedCount} email{visibleActionedCount !== 1 ? 's' : ''} need your attention — shown first
                        </p>
@@ -1075,8 +1009,7 @@ export default function DailyCommandCenter() {
             </div>
 
             {/* Slack */}
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <GBadge size={28} />
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>💬 Slack</h2>
@@ -1098,11 +1031,8 @@ export default function DailyCommandCenter() {
                  </div>
                ) : (
                  slackMentions.map(m => (
-                   <SlackMentionRow key={m.ts} mention={m}
-                     addingWorkTodoFor={addingWorkTodoFor}
-                     onOpenWorkTodo={handleOpenWorkTodo}
-                     onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                     onCancelWorkTodo={handleCancelWorkTodo} />
+                   <SlackMentionRow key={m.ts} mention={m} addingWorkTodoFor={addingWorkTodoFor}
+                     onOpenWorkTodo={handleOpenWorkTodo} onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
                  ))
                )}
             </div>
@@ -1118,17 +1048,15 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── JIRA ── */}
+        {/* JIRA */}
         {activeView === 'jira' && (
           <div>
-            <div style={{ background: 'rgba(30,41,59,0.4)', borderRadius: '12px', padding: '14px 16px',
-              marginBottom: '12px', border: '1px solid rgba(71,85,105,0.4)',
-              display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ background: 'rgba(30,41,59,0.4)', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px',
+              border: '1px solid rgba(71,85,105,0.4)', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>Filter:</span>
               {['All', 'CTDC', 'ICDC'].map(f => (
                 <button key={f} onClick={() => setJiraFilter(f)} style={{
-                  padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                  border: '1px solid', cursor: 'pointer',
+                  padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, border: '1px solid', cursor: 'pointer',
                   background: jiraFilter === f ? '#fff' : 'transparent',
                   color: jiraFilter === f ? '#0f172a' : '#94a3b8',
                   borderColor: jiraFilter === f ? '#fff' : 'rgba(71,85,105,0.4)' }}>
@@ -1138,23 +1066,19 @@ export default function DailyCommandCenter() {
               <span style={{ color: 'rgba(71,85,105,0.6)', fontSize: '12px' }}>|</span>
               {['All', 'Critical', 'Major', 'Minor'].map(f => (
                 <button key={f} onClick={() => setJiraPriorityFilter(f)} style={{
-                  padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
-                  border: '1px solid', cursor: 'pointer',
+                  padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, border: '1px solid', cursor: 'pointer',
                   background: jiraPriorityFilter === f ? '#fff' : 'transparent',
                   color: jiraPriorityFilter === f ? '#0f172a' : '#94a3b8',
                   borderColor: jiraPriorityFilter === f ? '#fff' : 'rgba(71,85,105,0.4)' }}>{f}</button>
               ))}
             </div>
             {['All', 'CTDC'].includes(jiraFilter) && (
-              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
-                  display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <GBadge size={28} />
                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
                   <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>CTDC — Clinical and Translational Data Commons</h2>
-                  <span style={{ background: '#f0fdf4', color: '#15803d', borderRadius: '10px', padding: '2px 8px',
-                    fontSize: '11px', fontWeight: 700, border: '1px solid #bbf7d0', marginLeft: 'auto' }}>
+                  <span style={{ background: '#f0fdf4', color: '#15803d', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, border: '1px solid #bbf7d0', marginLeft: 'auto' }}>
                     {jiraLoading ? '…' : filteredJira.filter(t => t.product === 'CTDC').length} open
                   </span>
                 </div>
@@ -1164,25 +1088,19 @@ export default function DailyCommandCenter() {
                    filteredJira.filter(t => t.product === 'CTDC').length === 0
                      ? <LoadingRows message="No CTDC tasks match current filters." color="#64748b" />
                      : filteredJira.filter(t => t.product === 'CTDC').map(t => (
-                         <JiraRow key={t.key} task={t}
-                           addingWorkTodoFor={addingWorkTodoFor}
-                           onOpenWorkTodo={handleOpenWorkTodo}
-                           onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                           onCancelWorkTodo={handleCancelWorkTodo} />
+                         <JiraRow key={t.key} task={t} addingWorkTodoFor={addingWorkTodoFor}
+                           onOpenWorkTodo={handleOpenWorkTodo} onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
                        ))}
                 </div>
               </div>
             )}
             {['All', 'ICDC'].includes(jiraFilter) && (
-              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9',
-                  display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9', marginBottom: '12px' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <GBadge size={28} />
                   <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
                   <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: 0 }}>ICDC — Integrated Canine Data Commons</h2>
-                  <span style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: '10px', padding: '2px 8px',
-                    fontSize: '11px', fontWeight: 700, border: '1px solid #bfdbfe', marginLeft: 'auto' }}>
+                  <span style={{ background: '#eff6ff', color: '#1d4ed8', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, border: '1px solid #bfdbfe', marginLeft: 'auto' }}>
                     {jiraLoading ? '…' : filteredJira.filter(t => t.product === 'ICDC').length} open
                   </span>
                 </div>
@@ -1192,11 +1110,8 @@ export default function DailyCommandCenter() {
                    filteredJira.filter(t => t.product === 'ICDC').length === 0
                      ? <LoadingRows message="No ICDC tasks match current filters." color="#64748b" />
                      : filteredJira.filter(t => t.product === 'ICDC').map(t => (
-                         <JiraRow key={t.key} task={t}
-                           addingWorkTodoFor={addingWorkTodoFor}
-                           onOpenWorkTodo={handleOpenWorkTodo}
-                           onSaveWorkTodo={handleSaveWorkTodoFromCard}
-                           onCancelWorkTodo={handleCancelWorkTodo} />
+                         <JiraRow key={t.key} task={t} addingWorkTodoFor={addingWorkTodoFor}
+                           onOpenWorkTodo={handleOpenWorkTodo} onSaveWorkTodo={handleSaveWorkTodoFromCard} onCancelWorkTodo={handleCancelWorkTodo} />
                        ))}
                 </div>
               </div>
@@ -1204,10 +1119,9 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── ASANA ── */}
+        {/* ASANA */}
         {activeView === 'asana' && (
-          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
             <div style={{ padding: '16px 20px 4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
               <div>
@@ -1255,13 +1169,11 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── WORK TO-DO tab ── */}
+        {/* WORK TO-DO */}
         {activeView === 'work' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9',
-                display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+              <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <GBadge size={28} />
                 <div>
                   <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>💼 Work To-Do</h2>
@@ -1272,8 +1184,7 @@ export default function DailyCommandCenter() {
                 </div>
               </div>
               {workTodosError === 'kv_missing' && (
-                <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb',
-                  borderRadius: '10px', border: '1px solid #fde68a' }}>
+                <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}>
                   <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p>
                   <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
                     Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.
@@ -1309,26 +1220,22 @@ export default function DailyCommandCenter() {
                     No work to-dos yet — use ➕ Work To-Do on Jira, Asana, or Slack items, or add one above ✓
                   </p>
                  ) : activeWorkTodos.map(t => (
-                  <TodoItem key={t.id} item={t} onToggle={handleToggleWorkTodo}
-                    onDelete={handleDeleteWorkTodo} syncStatus={workTodoSyncStatus[t.id]}
-                    sourceConfig={workSourceConfig} accentColor="#10b981" />
+                  <TodoItem key={t.id} item={t} onToggle={handleToggleWorkTodo} onDelete={handleDeleteWorkTodo}
+                    syncStatus={workTodoSyncStatus[t.id]} sourceConfig={workSourceConfig} accentColor="#10b981" />
                 ))}
                 {completedWorkTodos.length > 0 && (
                   <div style={{ marginTop: '16px' }}>
                     <button onClick={() => setShowWorkCompleted(!showWorkCompleted)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
-                        display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600,
-                        textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         {showWorkCompleted ? '▲' : '▼'} Completed ({completedWorkTodos.length})
                       </span>
                     </button>
                     {showWorkCompleted && (
                       <div style={{ marginTop: '8px' }}>
                         {completedWorkTodos.map(t => (
-                          <TodoItem key={t.id} item={t} onToggle={handleToggleWorkTodo}
-                            onDelete={handleDeleteWorkTodo} syncStatus={workTodoSyncStatus[t.id]}
-                            sourceConfig={workSourceConfig} accentColor="#10b981" />
+                          <TodoItem key={t.id} item={t} onToggle={handleToggleWorkTodo} onDelete={handleDeleteWorkTodo}
+                            syncStatus={workTodoSyncStatus[t.id]} sourceConfig={workSourceConfig} accentColor="#10b981" />
                         ))}
                       </div>
                     )}
@@ -1339,12 +1246,10 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── PERSONAL TO-DO ── */}
+        {/* PERSONAL TO-DO */}
         {activeView === 'todo' && (
-          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9',
-              display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
               <div>
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🏠 Personal To-Do</h2>
@@ -1355,8 +1260,7 @@ export default function DailyCommandCenter() {
               </div>
             </div>
             {todosError === 'kv_missing' && (
-              <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb',
-                borderRadius: '10px', border: '1px solid #fde68a' }}>
+              <div style={{ margin: '16px', padding: '14px 16px', background: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}>
                 <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#92400e' }}>⚠ Vercel KV not connected</p>
                 <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#78350f', lineHeight: 1.5 }}>
                   Go to <strong>vercel.com → your project → Storage</strong> and create a KV store, then redeploy.
@@ -1392,26 +1296,22 @@ export default function DailyCommandCenter() {
                   No personal to-dos yet — use ➕ To-Do on Gmail or Calendar items, or add one above ✓
                 </p>
                ) : activeTodos.map(t => (
-                <TodoItem key={t.id} item={t} onToggle={handleToggleTodo}
-                  onDelete={handleDeleteTodo} syncStatus={todoSyncStatus[t.id]}
-                  sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
+                <TodoItem key={t.id} item={t} onToggle={handleToggleTodo} onDelete={handleDeleteTodo}
+                  syncStatus={todoSyncStatus[t.id]} sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
               ))}
               {completedTodos.length > 0 && (
                 <div style={{ marginTop: '16px' }}>
                   <button onClick={() => setShowCompleted(!showCompleted)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
-                      display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600,
-                      textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       {showCompleted ? '▲' : '▼'} Completed ({completedTodos.length})
                     </span>
                   </button>
                   {showCompleted && (
                     <div style={{ marginTop: '8px' }}>
                       {completedTodos.map(t => (
-                        <TodoItem key={t.id} item={t} onToggle={handleToggleTodo}
-                          onDelete={handleDeleteTodo} syncStatus={todoSyncStatus[t.id]}
-                          sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
+                        <TodoItem key={t.id} item={t} onToggle={handleToggleTodo} onDelete={handleDeleteTodo}
+                          syncStatus={todoSyncStatus[t.id]} sourceConfig={personalSourceConfig} accentColor="#8b5cf6" />
                       ))}
                     </div>
                   )}
@@ -1421,12 +1321,10 @@ export default function DailyCommandCenter() {
           </div>
         )}
 
-        {/* ── GROCERY ── */}
+        {/* GROCERY */}
         {activeView === 'grocery' && (
-          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9',
-              display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <GBadge size={28} />
               <div>
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '18px', color: '#0f172a', margin: '0 0 2px' }}>🛒 Grocery List</h2>
@@ -1441,8 +1339,7 @@ export default function DailyCommandCenter() {
               ))}
               {groceries.filter(g => checkedGroceries[g.id]).length > 0 && (
                 <>
-                  <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase',
-                    letterSpacing: '0.06em', margin: '12px 0 6px 10px' }}>In cart</p>
+                  <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '12px 0 6px 10px' }}>In cart</p>
                   {groceries.filter(g => checkedGroceries[g.id]).map(g => (
                     <GroceryItem key={g.id} item={g} checked={true} onToggle={toggleGrocery} onDelete={deleteGrocery} />
                   ))}
@@ -1452,11 +1349,9 @@ export default function DailyCommandCenter() {
                 <input type="text" value={newGrocery} onChange={e => setNewGrocery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addGrocery()}
                   placeholder="Add item…"
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: '8px',
-                    border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit' }} />
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'inherit' }} />
                 <button onClick={addGrocery}
-                  style={{ padding: '9px 18px', borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+                  style={{ padding: '9px 18px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
                     color: '#fff', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Add</button>
               </div>
             </div>
