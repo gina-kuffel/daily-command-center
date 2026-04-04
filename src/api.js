@@ -1,255 +1,151 @@
-// ─────────────────────────────────────────────────────────────────────────────
 // Daily Command Center — API Integration
-//
-// ALL external API calls go through Vercel serverless proxies so that tokens
-// are never exposed in the browser bundle.
-//
-//   /api/jira      — Jira Server/DC (tracker.nci.nih.gov)
-//   /api/asana     — Asana (app.asana.com)
-//   /api/slack     — Slack (slack.com)
-//   /api/gmail     — Gmail (personal inbox)
-//   /api/calendar  — Google Calendar (personal — NOT NIH Outlook)
-//   /api/todos     — Personal To-Do store (Vercel KV)
-//
-// Create React App env vars in the browser must use REACT_APP_ prefix.
-// Server-side proxy env vars need no prefix (JIRA_TOKEN, ASANA_TOKEN, etc.).
-// ─────────────────────────────────────────────────────────────────────────────
+// All external calls go through Vercel serverless proxies.
 
 const todayStr = new Date().toISOString().slice(0, 10);
 
-// ── JIRA ─────────────────────────────────────────────────────────────────────
-
-export async function fetchMyJiraTasks() {
-  const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
-  const params = new URLSearchParams({
-    jql,
-    fields: 'summary,status,priority,issuetype,labels,project',
-    maxResults: 100,
-  });
-
-  try {
-    const res = await fetch(`/api/jira?${params.toString()}`);
-    if (!res.ok) {
-      console.error('[Jira] Proxy error:', res.status, await res.json().catch(() => ({})));
-      return [];
-    }
-    const data = await res.json();
-    return (data.issues || []).map(issue => ({
-      key:      issue.key,
-      summary:  issue.fields.summary?.trim() || issue.key,
-      status:   issue.fields.status?.name    || 'Open',
-      priority: issue.fields.priority?.name  || 'TBD',
-      product:  projectToProduct(issue.fields.project?.key),
-      type:     issue.fields.issuetype?.name || 'Task',
-      label:    (issue.fields.labels || [])[0] || null,
-    }));
-  } catch (e) {
-    console.error('[Jira] Fetch error:', e);
-    return [];
-  }
+function safeArray(val) {
+  return Array.isArray(val) ? val : [];
 }
 
-function projectToProduct(projectKey) {
-  if (projectKey === 'CTDC') return 'CTDC';
-  if (projectKey === 'ICDC') return 'ICDC';
-  if (projectKey === 'DHDM') return 'ICDC';
+// ── JIRA ──────────────────────────────────────────────────────────────────────
+export async function fetchMyJiraTasks() {
+  const jql = 'assignee = currentUser() AND statusCategory != Done AND project in (CTDC, ICDC, DHDM) ORDER BY priority ASC, updated DESC';
+  const params = new URLSearchParams({ jql, fields: 'summary,status,priority,issuetype,labels,project', maxResults: 100 });
+  try {
+    const res = await fetch(`/api/jira?${params.toString()}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return safeArray(data.issues).map(issue => ({
+      key:      issue.key,
+      summary:  issue.fields?.summary?.trim() || issue.key,
+      status:   issue.fields?.status?.name    || 'Open',
+      priority: issue.fields?.priority?.name  || 'TBD',
+      product:  projectToProduct(issue.fields?.project?.key),
+      type:     issue.fields?.issuetype?.name || 'Task',
+      label:    safeArray(issue.fields?.labels)[0] || null,
+    }));
+  } catch { return []; }
+}
+
+function projectToProduct(k) {
+  if (k === 'CTDC') return 'CTDC';
+  if (k === 'ICDC' || k === 'DHDM') return 'ICDC';
   return 'CTDC';
 }
 
-export async function transitionJiraIssue(issueKey, targetStatusName) {
-  console.warn('[Jira] transitionJiraIssue not yet proxied.');
-  return { success: false, error: 'Not yet implemented via proxy.' };
-}
+export async function transitionJiraIssue() { return { success: false, error: 'Not yet implemented.' }; }
+export async function addJiraComment()      { return { success: false, error: 'Not yet implemented.' }; }
 
-export async function addJiraComment(issueKey, comment) {
-  console.warn('[Jira] addJiraComment not yet proxied.');
-  return { success: false, error: 'Not yet implemented via proxy.' };
-}
-
-// ── ASANA ─────────────────────────────────────────────────────────────────────
-
+// ── ASANA ───────────────────────────────────────────────────────────────────
 export async function fetchMyAsanaTasks() {
   try {
     const res = await fetch('/api/asana?op=tasks');
-    if (!res.ok) {
-      console.error('[Asana] Proxy error:', res.status, await res.json().catch(() => ({})));
-      return [];
-    }
+    if (!res.ok) return [];
     const data = await res.json();
-    return (data.tasks || []).map(t => ({
-      ...t,
-      overdue: !!t.due && t.due < todayStr,
-    }));
-  } catch (e) {
-    console.error('[Asana] Fetch error:', e);
-    return [];
-  }
+    return safeArray(data.tasks).map(t => ({ ...t, overdue: !!t.due && t.due < todayStr }));
+  } catch { return []; }
 }
 
 export async function completeAsanaTask(gid) {
   try {
     const res = await fetch(`/api/asana?op=complete&gid=${gid}`, { method: 'POST' });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
     return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+  } catch (e) { return { success: false, error: e.message }; }
 }
 
 export async function reopenAsanaTask(gid) {
   try {
     const res = await fetch(`/api/asana?op=reopen&gid=${gid}`, { method: 'POST' });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
     return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+  } catch (e) { return { success: false, error: e.message }; }
 }
 
-// ── SLACK ─────────────────────────────────────────────────────────────────────
-
+// ── SLACK ───────────────────────────────────────────────────────────────────
 export async function fetchMySlackMentions() {
   try {
     const res = await fetch('/api/slack?op=mentions');
-    if (!res.ok) {
-      console.error('[Slack] Proxy error:', res.status, await res.json().catch(() => ({})));
-      return [];
-    }
+    if (!res.ok) return [];
     const data = await res.json();
-    return data.mentions || [];
-  } catch (e) {
-    console.error('[Slack] Fetch error:', e);
-    return [];
-  }
+    return safeArray(data.mentions);
+  } catch { return []; }
 }
 
-// ── GMAIL ─────────────────────────────────────────────────────────────────────
-
+// ── GMAIL ───────────────────────────────────────────────────────────────────
 export async function fetchMyGmailActionItems() {
   try {
     const res = await fetch('/api/gmail?op=action_items');
-    if (!res.ok) {
-      console.error('[Gmail] Proxy error:', res.status, await res.json().catch(() => ({})));
-      return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
-    }
+    if (!res.ok) return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
     const data = await res.json();
     return {
-      emails:        data.emails        || [],
+      emails:        safeArray(data.emails),
       totalUnread:   data.totalUnread   || 0,
       actionedCount: data.actionedCount || 0,
       error:         false,
     };
-  } catch (e) {
-    console.error('[Gmail] Fetch error:', e);
-    return { emails: [], totalUnread: 0, actionedCount: 0, error: true };
-  }
+  } catch { return { emails: [], totalUnread: 0, actionedCount: 0, error: true }; }
 }
 
-// ── GOOGLE CALENDAR (personal only — NOT NIH Outlook) ─────────────────────────
-
+// ── GOOGLE CALENDAR ────────────────────────────────────────────────────────
 export async function fetchMyCalendarEvents() {
   try {
     const res = await fetch('/api/calendar?op=events');
-    if (!res.ok) {
-      console.error('[Calendar] Proxy error:', res.status, await res.json().catch(() => ({})));
-      return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true };
-    }
+    if (!res.ok) return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true };
     const data = await res.json();
     return {
-      today:      data.today      || [],
-      tomorrow:   data.tomorrow   || [],
-      prepItems:  data.prepItems  || [],
+      today:      safeArray(data.today),
+      tomorrow:   safeArray(data.tomorrow),
+      prepItems:  safeArray(data.prepItems),
       totalCount: data.totalCount || 0,
       error:      false,
     };
-  } catch (e) {
-    console.error('[Calendar] Fetch error:', e);
-    return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true };
-  }
+  } catch { return { today: [], tomorrow: [], prepItems: [], totalCount: 0, error: true }; }
 }
 
-// ── PERSONAL TODOS ────────────────────────────────────────────────────────────
-
+// ── PERSONAL TODOS ───────────────────────────────────────────────────────────
 export async function fetchTodos() {
   try {
     const res = await fetch('/api/todos?op=list');
-    if (!res.ok) {
-      console.error('[Todos] Fetch error:', res.status);
-      return { todos: [], kvMissing: res.status === 503 };
-    }
+    if (!res.ok) return { todos: [], kvMissing: res.status === 503 };
     const data = await res.json();
-    return { todos: data.todos || [], kvMissing: false };
-  } catch (e) {
-    console.error('[Todos] Fetch error:', e);
-    return { todos: [], kvMissing: false };
-  }
+    return { todos: safeArray(data.todos), kvMissing: false };
+  } catch { return { todos: [], kvMissing: false }; }
 }
 
 export async function addTodoAPI({ name, due, priority, source = 'manual', sourceRef = null }) {
   try {
     const res = await fetch('/api/todos?op=add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, due, priority, source, sourceRef }),
     });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
-    const data = await res.json();
-    return { success: true, todo: data.todo };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
+    return { success: true, todo: (await res.json()).todo };
+  } catch (e) { return { success: false, error: e.message }; }
 }
 
 export async function toggleTodoAPI(id) {
   try {
     const res = await fetch(`/api/todos?op=toggle&id=${encodeURIComponent(id)}`, { method: 'POST' });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
-    const data = await res.json();
-    return { success: true, todo: data.todo };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
+    return { success: true, todo: (await res.json()).todo };
+  } catch (e) { return { success: false, error: e.message }; }
 }
 
 export async function deleteTodoAPI(id) {
   try {
     const res = await fetch(`/api/todos?op=delete&id=${encodeURIComponent(id)}`, { method: 'POST' });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
     return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+  } catch (e) { return { success: false, error: e.message }; }
 }
 
 export async function updateTodoAPI(id, fields) {
   try {
     const res = await fetch(`/api/todos?op=update&id=${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields),
     });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      return { success: false, error: e.error || res.statusText };
-    }
-    const data = await res.json();
-    return { success: true, todo: data.todo };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); return { success: false, error: e.error || res.statusText }; }
+    return { success: true, todo: (await res.json()).todo };
+  } catch (e) { return { success: false, error: e.message }; }
 }
