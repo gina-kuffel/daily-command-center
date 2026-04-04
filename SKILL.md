@@ -210,13 +210,20 @@ github:get_file_contents(owner="gina-kuffel", repo="daily-command-center", path=
 ```
 
 ### Key Learnings — Code Changes
+
 - **Always read before writing** — fetch `App.jsx` live from GitHub before making any edits
 - **SHA freshness** — always fetch the current SHA immediately before `create_or_update_file`
-- **Vercel ESLint strictness** — `CI=true` makes unused vars fatal. Remove, don't comment out
+- **Vercel ESLint strictness** — `CI=true` makes unused vars fatal. Build script uses `DISABLE_ESLINT_PLUGIN=true react-scripts build` to suppress this permanently
 - **Large file timeouts** — pushing `App.jsx` may time out. Re-fetch after pushing to verify
-- **Module syntax** — `api/*.js` uses CommonJS (`module.exports`), React app uses `process.env.REACT_APP_*`
+- **Module syntax** — `api/*.js` uses CommonJS (`module.exports`), React app uses ES module syntax
 - **API convention** — all serverless endpoints use `?op=` query params + `GET`/`POST` only (no PATCH/DELETE)
 - **KV env vars** — `api/todos.js` and `api/work-todos.js` both support `UPSTASH_REDIS_REST_URL || KV_REST_API_URL` fallback
+- **Never define React components inside other components** — causes React 18 production remount crash (black screen). All components must be defined at module level
+- **Never use JS reserved words as unquoted object keys** — `for`, `in`, `if`, etc. cause runtime SyntaxErrors in some bundler/engine combinations. Use plain variable names instead (e.g. `wtaAdding` not `wta.for`)
+- **Always wrap API response arrays in `sa()`** — `const sa = (v) => Array.isArray(v) ? v : []` applied at every `setState` call and `localStorage` read prevents `TypeError: ae.filter is not a function` crashes
+- **`lsGet` must validate grocery array type** — if localStorage has corrupt non-array data for the grocery key, return the fallback `DEFAULT_GROCERIES`
+- **ErrorBoundary in `src/index.js`** — wraps `<App />` so runtime crashes display readable error + component stack instead of blank screen. Keep this in place permanently for easier debugging
+- **Vercel stale deployment cache** — after updating an env var (e.g. `GMAIL_REFRESH_TOKEN`), always **redeploy with "Use existing Build Cache" unchecked**. A standard redeploy may serve cached serverless functions that still read the old token value
 
 ### Commit Message Convention
 ```
@@ -245,7 +252,8 @@ daily-command-center/
 ├── src/
 │   ├── App.jsx          # Main React app — all UI + state logic
 │   ├── api.js           # Browser-side fetch wrappers for all proxies
-│   ├── index.js
+│   ├── ErrorBoundary.js # React class component — catches crashes, shows debug info
+│   ├── index.js         # Entry point — wraps <App /> in <ErrorBoundary>
 │   └── index.css
 ├── SKILL.md
 ├── README.md
@@ -265,11 +273,25 @@ daily-command-center/
 | `SLACK_TOKEN` | `api/slack.js` | Slack **User OAuth Token** (`xoxp-`) — requires `search:read` User Token Scope |
 | `GMAIL_CLIENT_ID` | `api/gmail.js`, `api/calendar.js` | Google OAuth Client ID |
 | `GMAIL_CLIENT_SECRET` | `api/gmail.js`, `api/calendar.js` | Google OAuth Client Secret |
-| `GMAIL_REFRESH_TOKEN` | `api/gmail.js`, `api/calendar.js` | OAuth refresh token — must include both `gmail.readonly` AND `calendar.readonly` scopes |
+| `GMAIL_REFRESH_TOKEN` | `api/gmail.js`, `api/calendar.js` | OAuth refresh token — must include both `gmail.readonly` AND `calendar.readonly` scopes. **Re-mint via OAuth Playground when `invalid_grant` errors appear.** |
 | `UPSTASH_REDIS_REST_URL` | `api/todos.js`, `api/work-todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 | `UPSTASH_REDIS_REST_TOKEN` | `api/todos.js`, `api/work-todos.js` | ✅ Auto-injected by Vercel/Upstash integration |
 
 > Both `api/todos.js` and `api/work-todos.js` also fall back to `KV_REST_API_URL` / `KV_REST_API_TOKEN` (old Vercel KV naming) if the Upstash vars are not present.
+
+### ⚠️ Google OAuth Token Maintenance
+
+The `GMAIL_REFRESH_TOKEN` covers both Gmail and Calendar (both APIs share the same OAuth client). It can expire or be revoked. When you see `invalid_grant` errors:
+
+1. Go to https://developers.google.com/oauthplayground
+2. ⚙️ gear → "Use your own OAuth credentials" → enter `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET`
+3. Paste scopes (one line, space-separated): `https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly`
+4. Authorize APIs → sign in as `gina.kuffel@gmail.com`
+5. Exchange authorization code for tokens → copy `refresh_token`
+6. Update `GMAIL_REFRESH_TOKEN` in Vercel → **Redeploy with cache disabled**
+
+**Debug endpoint:** `https://daily-command-center-kappa.vercel.app/api/gmail?op=debug`
+Returns `{"ok":true,"email":"gina.kuffel@gmail.com",...}` when working.
 
 ### ⚠️ Google Calendar — Personal Only
 - `api/calendar.js` connects to Gina's **personal** Google Calendar (`primary`)
@@ -290,6 +312,7 @@ daily-command-center/
 
 **Debug URLs:**
 ```
+https://daily-command-center-kappa.vercel.app/api/gmail?op=debug
 https://daily-command-center-kappa.vercel.app/api/jira?_debug=whoami
 https://daily-command-center-kappa.vercel.app/api/asana?op=tasks
 https://daily-command-center-kappa.vercel.app/api/slack?op=mentions
@@ -341,7 +364,7 @@ Both `/api/todos` and `/api/work-todos` use identical conventions:
 
 ---
 
-## ⚙️ Infrastructure Status (as of March 2026)
+## ⚙️ Infrastructure Status (as of April 2026)
 
 | Integration | Status | Notes |
 |---|---|---|
@@ -380,6 +403,8 @@ Both `/api/todos` and `/api/work-todos` use identical conventions:
 - [x] SyncBadge (⟳ / ✓ / ✗) on Asana checkboxes and all to-do toggles
 - [x] Work To-Do preview card in Briefing tab (top 5, overflow link to Work tab)
 - [x] Personal To-Do preview card in Briefing tab (top 5, overflow link to Personal tab)
+- [x] ErrorBoundary in `src/index.js` — catches crashes, displays error + component stack
+- [x] `sa()` array safety helper in `src/App.jsx` and `safeArray()` in `src/api.js` — prevents `.filter is not a function` crashes from API/localStorage surprises
 
 ### 🔜 Planned
 - [ ] Claude directly POSTing confirmed todos via `bash_tool` during Morning Sync
@@ -399,4 +424,4 @@ Both `/api/todos` and `/api/work-todos` use identical conventions:
 
 ---
 
-*Last updated: March 2026 — Daily Command Center v3.0*
+*Last updated: April 2026 — Daily Command Center v3.1*
